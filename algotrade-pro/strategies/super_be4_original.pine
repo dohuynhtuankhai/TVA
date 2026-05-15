@@ -1,0 +1,225 @@
+//@version=5
+
+strategy("Super BE4", overlay=true, initial_capital=1000)
+
+// =========================================================================
+
+// --- INPUTS & TOGGLES ---
+
+// =========================================================================
+
+var string G_CAPITAL = "Capital & Leverage"
+
+risk_pct = input.float(15.0, "Margin per Trade (% of Equity)", group=G_CAPITAL)
+
+leverage = input.int(10, "Leverage", options=[1, 2, 3, 5, 10, 20, 50, 100], group=G_CAPITAL)
+
+var string G_TOGGLE = "Enable/Disable Filters"
+
+pos_type    = input.string("Both", "Isolate Position Type", options=["Both", "Long Only", "Short Only"], group=G_TOGGLE)
+
+use_isolate = input.bool(true, "Force Close at 100% Loss (Isolate)", group=G_TOGGLE)
+
+use_hma     = input.bool(true,  "Use HMA Filter", group=G_TOGGLE)
+
+use_vrsi    = input.bool(false, "Use Volume RSI Filter", group=G_TOGGLE)
+
+use_sqz     = input.bool(true,  "Use LuxAlgo Squeeze Filter", group=G_TOGGLE)
+
+use_time    = input.bool(false, "Use Date/Time Filter", group=G_TOGGLE)
+
+show_tags   = input.bool(true,  "Show Entry/Exit Tags on Chart", group=G_TOGGLE)
+
+// --- Indicator Settings ---
+
+var string G_ST = "Supertrend (Core Trigger)"
+
+atr_period = input.int(10, "ATR Period", group=G_ST)
+
+multiplier = input.float(3.0, "Multiplier", group=G_ST)
+
+var string G_NOISE = "Trend Filter (HMA)"
+
+hma_len       = input.int(50, "HMA Length", group=G_NOISE)
+
+var string G_VOL = "Volume Filter (VRSI)"
+
+vrsi_len      = input.int(14, "Volume RSI Length", group=G_VOL)
+
+vrsi_thresh   = input.int(50, "Volume RSI Min Level", group=G_VOL)
+
+var string G_SQZ = "LuxAlgo Squeeze Settings"
+
+sqz_conv     = input.float(50.0, "Convergence Factor", group=G_SQZ)
+
+sqz_len      = input.int(20, "Squeeze Length", group=G_SQZ)
+
+sqz_thresh   = input.float(85.0, "Squeeze Threshold", group=G_SQZ)
+
+sqz_lookback = input.int(3, "Squeeze Lookback (Bars)", group=G_SQZ)
+
+var string G_TIME = "Date / Time Filter"
+
+start_date = input.time(timestamp("2024-01-01T00:00:00"), "Start Date", group=G_TIME)
+
+end_date   = input.time(timestamp("2030-01-01T00:00:00"), "End Date", group=G_TIME)
+
+var string G_TRAIL = "Trailing Stop Settings"
+
+trail_pct        = input.float(2.0, "Trailing Stop Activation (%)", step=0.1, group=G_TRAIL)
+
+trail_offset_pct = input.float(1.0, "Trailing Stop Offset (%)", step=0.1, group=G_TRAIL)
+
+// =========================================================================
+
+// --- LOGIC CALCULATIONS ---
+
+// =========================================================================
+
+pos_size = strategy.equity > 0 ? (strategy.equity * (risk_pct / 100) * leverage) / close : 0
+
+[supertrend, direction] = ta.supertrend(multiplier, atr_period)
+
+st_flip_up   = ta.change(direction) < 0
+
+st_flip_down = ta.change(direction) > 0
+
+hma_filter = ta.hma(close, hma_len)
+
+pass_hma_long  = use_hma ? (close > hma_filter) : true
+
+pass_hma_short = use_hma ? (close < hma_filter) : true
+
+vol_rsi = ta.rsi(volume, vrsi_len)
+
+pass_vrsi = use_vrsi ? (vol_rsi > vrsi_thresh) : true
+
+var float sqz_max = 0.
+
+var float sqz_min = 0.
+
+sqz_max := nz(math.max(close, sqz_max - (sqz_max - close) / sqz_conv), close)
+
+sqz_min := nz(math.min(close, sqz_min + (close - sqz_min) / sqz_conv), close)
+
+sqz_diff = math.log(sqz_max - sqz_min)
+
+psi = -50 * ta.correlation(sqz_diff, bar_index, sqz_len) + 50
+
+is_squeezing = ta.highest(psi, sqz_lookback) >= sqz_thresh
+
+pass_sqz = use_sqz ? is_squeezing : true
+
+pass_time = use_time ? (time >= start_date and time <= end_date) : true
+
+trail_points_ticks = (close * (trail_pct / 100)) / syminfo.mintick
+
+trail_offset_ticks = (close * (trail_offset_pct / 100)) / syminfo.mintick
+
+allow_long  = (pos_type == "Both" or pos_type == "Long Only")
+
+allow_short = (pos_type == "Both" or pos_type == "Short Only")
+
+long_signal  = st_flip_up   and pass_hma_long  and pass_vrsi and pass_sqz and pass_time and allow_long  and pos_size > 0
+
+short_signal = st_flip_down and pass_hma_short and pass_vrsi and pass_sqz and pass_time and allow_short and pos_size > 0
+
+// =========================================================================
+
+// --- EXECUTION, ALERTS & ENTRY LABELS ---
+
+// =========================================================================
+
+if long_signal
+
+strategy.entry("Long", strategy.long, qty=pos_size)
+
+// Calculate estimated prices based on the signal candle's close
+
+float long_act_price = close * (1 + (trail_pct / 100))
+
+string long_msg = "⬆ Long Entry\n" + syminfo.ticker + " | " + timeframe.period + "\nEst. Price: " + str.tostring(close, "#.##") + "\nTrail Act: " + str.tostring(long_act_price, "#.##")
+
+alert(long_msg, alert.freq_all) 
+
+if show_tags
+
+label.new(bar_index, low, long_msg, color=color.blue, textcolor=color.white, style=label.style_label_up, yloc=yloc.belowbar)
+
+if short_signal
+
+strategy.entry("Short", strategy.short, qty=pos_size)
+
+// Calculate estimated prices based on the signal candle's close
+
+float short_act_price = close * (1 - (trail_pct / 100))
+
+string short_msg = "⬇ Short Entry\n" + syminfo.ticker + " | " + timeframe.period + "\nEst. Price: " + str.tostring(close, "#.##") + "\nTrail Act: " + str.tostring(short_act_price, "#.##")
+
+alert(short_msg, alert.freq_all) 
+
+if show_tags
+
+label.new(bar_index, high, short_msg, color=color.fuchsia, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar)
+
+// =========================================================================
+
+// --- EXITS & EXIT LABELS ---
+
+// =========================================================================
+
+strategy.exit("Exit", "Long", trail_points = trail_points_ticks, trail_offset = trail_offset_ticks)
+
+strategy.exit("Exit", "Short", trail_points = trail_points_ticks, trail_offset = trail_offset_ticks)
+
+if use_isolate
+
+float long_liq_price  = strategy.position_avg_price * (1 - (1.0 / leverage))
+
+float short_liq_price = strategy.position_avg_price * (1 + (1.0 / leverage))
+
+strategy.exit("Liq Long", "Long", stop=long_liq_price, comment="Isolated Liq")
+
+strategy.exit("Liq Short", "Short", stop=short_liq_price, comment="Isolated Liq")
+
+if strategy.closedtrades > strategy.closedtrades[1]
+
+last_trade_idx = strategy.closedtrades - 1
+
+entry_price = strategy.closedtrades.entry_price(last_trade_idx)
+
+exit_price  = strategy.closedtrades.exit_price(last_trade_idx)
+
+trade_id    = strategy.closedtrades.entry_id(last_trade_idx)
+
+pnl         = strategy.closedtrades.profit(last_trade_idx)
+
+float pnl_pct = trade_id == "Long" ? ((exit_price - entry_price) / entry_price) * 100 : ((entry_price - exit_price) / entry_price) * 100
+
+string wl_prefix  = pnl_pct > 0 ? "+" : ""
+
+string pnl_str    = (pnl > 0 ? "+" : "") + str.tostring(pnl, "#.##")
+
+string exit_msg = "✖ Exit " + trade_id + "\n" + syminfo.ticker + " | " + timeframe.period + "\nClose Price: " + str.tostring(exit_price, "#.##") + "\nPnL: " + pnl_str + " (" + wl_prefix + str.tostring(pnl_pct, "#.##") + "%)"
+
+alert(exit_msg, alert.freq_all) 
+
+if show_tags
+
+lbl_color = pnl > 0 ? color.new(color.green, 0) : color.new(color.red, 0)
+
+label.new(bar_index, high, exit_msg, color=lbl_color, textcolor=color.white, style=label.style_label_down, yloc=yloc.abovebar)
+
+// =========================================================================
+
+// --- VISUALS ---
+
+// =========================================================================
+
+plot(hma_filter, "HMA Filter", color=color.new(color.gray, 50), linewidth=2)
+
+plot(direction < 0 ? supertrend : na, "Up Trend", color=color.green, style=plot.style_linebr, linewidth=2)
+
+plot(direction > 0 ? supertrend : na, "Down Trend", color=color.red, style=plot.style_linebr, linewidth=2)
+
+plotshape(use_sqz and (psi >= sqz_thresh) ? 0 : na, title="Squeeze Active Dots", style=shape.circle, location=location.bottom, color=color.new(color.orange, 50), size=size.tiny)

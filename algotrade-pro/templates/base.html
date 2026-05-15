@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}AlgoTrade Pro{% endblock %}</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <style>
+        body { background-color: #111827; color: #f9fafb; font-family: 'Inter', sans-serif; }
+        .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 0.5rem; }
+        .badge-green { background-color: #065f46; color: #6ee7b7; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
+        .badge-red { background-color: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
+        .badge-yellow { background-color: #78350f; color: #fcd34d; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
+        .badge-blue { background-color: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
+        .stat-card { transition: transform 0.15s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        .btn-primary { background-color: #2563eb; color: white; padding: 8px 16px; border-radius: 0.5rem; font-weight: 500; cursor: pointer; border: none; }
+        .btn-primary:hover { background-color: #1d4ed8; }
+        .btn-danger { background-color: #dc2626; color: white; padding: 8px 16px; border-radius: 0.5rem; font-weight: 500; cursor: pointer; border: none; }
+        .btn-danger:hover { background-color: #b91c1c; }
+        .input-field { background-color: #374151; border: 1px solid #4b5563; color: #f9fafb; padding: 8px 12px; border-radius: 0.5rem; width: 100%; }
+        .input-field:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3); }
+        table { width: 100%; border-collapse: collapse; }
+        th { text-align: center; padding: 12px 16px; color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #374151; }
+        td { text-align: center; padding: 12px 16px; border-bottom: 1px solid #374151; font-size: 0.875rem; }
+        tr:hover { background-color: #111827; }
+        .nav-link { color: #9ca3af; padding: 8px 16px; border-radius: 0.5rem; text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .nav-link:hover, .nav-link.active { color: #f9fafb; background-color: #374151; }
+        .sidebar { width: 250px; min-height: 100vh; background-color: #1f2937; border-right: 1px solid #374151; position: fixed; top: 0; left: 0; padding: 24px 16px; }
+        .main-content { margin-left: 250px; padding: 32px; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: 0.5rem; z-index: 50; display: none; }
+        .toast-success { background-color: #065f46; color: #6ee7b7; }
+        .toast-error { background-color: #7f1d1d; color: #fca5a5; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; display: none; align-items: center; justify-content: center; }
+        .modal-content { background: #1f2937; border: 1px solid #374151; border-radius: 0.75rem; padding: 24px; width: 100%; max-width: 480px; }
+        .toggle-bg { width: 48px; height: 26px; background: #4b5563; border-radius: 9999px; position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.2s; }
+        .toggle-bg::after { content: ''; position: absolute; left: 3px; top: 3px; background: white; width: 20px; height: 20px; border-radius: 50%; transition: transform 0.2s; }
+        .toggle-bg.active { background: #2563eb; }
+        .toggle-bg.active::after { transform: translateX(22px); }
+        .pnl-positive { color: #6ee7b7; }
+        .pnl-negative { color: #fca5a5; }
+        .ws-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .ws-dot.connected { background-color: #34d399; }
+        .ws-dot.disconnected { background-color: #ef4444; }
+    </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside class="sidebar">
+    <div style="margin-bottom: 32px;">
+        <h1 style="font-size: 1.25rem; font-weight: 700; color: #f9fafb;">
+            &#9889; AlgoTrade Pro
+        </h1>
+        <span style="font-size: 0.75rem; color: #6b7280;">V1 Engine</span>
+    </div>
+
+    <nav style="display: flex; flex-direction: column; gap: 4px;">
+        <a href="/" class="nav-link {% if page == 'dashboard' %}active{% endif %}">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+            Dashboard
+        </a>
+        <a href="/accounts" class="nav-link {% if page == 'accounts' %}active{% endif %}">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            Accounts
+        </a>
+        <a href="/positions" class="nav-link {% if page == 'positions' %}active{% endif %}">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            Open Positions
+        </a>
+        <a href="/trades" class="nav-link {% if page == 'trades' %}active{% endif %}">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            Order History
+        </a>
+        <a href="/webhook-logs" class="nav-link {% if page == 'webhook_logs' %}active{% endif %}">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Webhook Logs
+        </a>
+        <a href="/settings" class="nav-link {% if page == 'settings' %}active{% endif %}">
+            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Bot Settings
+        </a>
+    </nav>
+
+    <div style="position: absolute; bottom: 24px; left: 16px; right: 16px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: #6b7280;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span class="ws-dot" id="wsStatus"></span>
+                <span id="wsLabel">Connecting…</span>
+            </div>
+            <button onclick="handleLogout()" style="color: #9ca3af; background: none; border: none; cursor: pointer; font-size: 0.75rem;">Logout</button>
+        </div>
+    </div>
+</aside>
+
+<!-- Testnet Banner (loaded dynamically) -->
+<div id="testnetBanner" style="display: none; position: fixed; top: 0; left: 250px; right: 0; background: linear-gradient(90deg, #78350f, #92400e); color: #fcd34d; text-align: center; padding: 6px; font-size: 0.8rem; font-weight: 600; z-index: 50; letter-spacing: 0.05em;">
+    TESTNET MODE — Trading with fake money
+</div>
+
+<!-- Main Content -->
+<main class="main-content" id="mainContent">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Toast notification -->
+<div id="toast" class="toast"></div>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
+<script>
+    // ── WebSocket ───────────────────────────────────────────────────
+    let ws;
+    let wsReconnectInterval;
+
+    function connectWS() {
+        const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+        ws.onopen = () => {
+            document.getElementById('wsStatus').className = 'ws-dot connected';
+            document.getElementById('wsLabel').textContent = 'Live';
+            clearInterval(wsReconnectInterval);
+            // Heartbeat
+            setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 30000);
+        };
+
+        ws.onmessage = (event) => {
+            if (event.data === 'pong') return;
+            const msg = JSON.parse(event.data);
+            handleWSEvent(msg.event, msg.data);
+        };
+
+        ws.onclose = () => {
+            document.getElementById('wsStatus').className = 'ws-dot disconnected';
+            document.getElementById('wsLabel').textContent = 'Disconnected';
+            wsReconnectInterval = setTimeout(connectWS, 3000);
+        };
+    }
+
+    function handleWSEvent(event, data) {
+        if (event === 'trade_executed') {
+            showToast(`Trade ${data.status}: ${data.symbol || ''} ${data.side || ''}`, data.status === 'FILLED' ? 'success' : 'error');
+            if (typeof onTradeEvent === 'function') onTradeEvent(data);
+        } else if (event === 'balance_update') {
+            if (typeof onBalanceEvent === 'function') onBalanceEvent(data);
+        } else if (event === 'account_added') {
+            if (typeof onAccountAdded === 'function') onAccountAdded(data);
+        }
+    }
+
+    function showToast(message, type = 'success') {
+        const toast = document.getElementById('toast');
+        toast.textContent = message;
+        toast.className = `toast toast-${type}`;
+        toast.style.display = 'block';
+        setTimeout(() => { toast.style.display = 'none'; }, 4000);
+    }
+
+    async function handleLogout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/login';
+    }
+
+    connectWS();
+
+    // Check testnet mode on every page load
+    fetch('/api/health').then(r => r.json()).then(data => {
+        if (data.testnet) {
+            document.getElementById('testnetBanner').style.display = 'block';
+            document.getElementById('mainContent').style.paddingTop = '60px';
+        } else {
+            document.getElementById('testnetBanner').style.display = 'none';
+            document.getElementById('mainContent').style.paddingTop = '32px';
+        }
+    });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

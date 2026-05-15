@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Bot Settings – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-size: 1.5rem; font-weight: 700;">Bot Settings</h2>
+    <p style="color: #9ca3af; font-size: 0.875rem;">Global risk parameters for the Bot Engine</p>
+</div>
+
+<div class="card" style="padding: 24px; max-width: 600px;">
+    <form onsubmit="saveSettings(event)">
+        <!-- Bot Active Toggle -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
+            <div>
+                <p style="font-weight: 600;">Bot Engine</p>
+                <p style="font-size: 0.8rem; color: #6b7280;">Enable or disable automated trading</p>
+            </div>
+            <div class="toggle-bg" id="botToggle" onclick="toggleBot()"></div>
+        </div>
+
+        <!-- Testnet Mode Toggle -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
+            <div>
+                <p style="font-weight: 600;">Testnet Mode</p>
+                <p style="font-size: 0.8rem; color: #6b7280;">Trade with fake money on Binance Testnet</p>
+                <p id="testnetWarning" style="font-size: 0.75rem; color: #fca5a5; margin-top: 4px; display: none;">
+                    Turning this OFF means the bot will trade with REAL money
+                </p>
+            </div>
+            <div class="toggle-bg" id="testnetToggle" onclick="toggleTestnet()"></div>
+        </div>
+
+        <!-- Risk Per Trade -->
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Risk Per Trade (%)</label>
+            <input class="input-field" id="riskPerTrade" type="number" step="0.1" min="0.1" max="100" required>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Percentage of account balance used per trade</p>
+        </div>
+
+        <!-- Leverage Override -->
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Leverage Override</label>
+            <input class="input-field" id="leverageOverride" type="number" min="1" max="125" required>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Applied to all orders (1x – 125x)</p>
+        </div>
+
+        <!-- Daily Loss Limit -->
+        <div style="margin-bottom: 20px;">
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Daily Loss Limit (USDT)</label>
+            <input class="input-field" id="dailyLossLimit" type="number" step="1" min="0" required>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Bot stops trading if daily losses exceed this amount</p>
+        </div>
+
+        <!-- Max Drawdown -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Max Drawdown (USDT)</label>
+            <input class="input-field" id="maxDrawdown" type="number" step="1" min="0" required>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">All-time loss threshold – bot stops if exceeded</p>
+        </div>
+
+        <!-- Positions Refresh Interval -->
+        <div style="margin-bottom: 24px;">
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Positions Refresh Interval (seconds)</label>
+            <input class="input-field" id="refreshInterval" type="number" min="3" max="300" required>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">How often the Open Positions page fetches live data (3–300 seconds)</p>
+        </div>
+
+        <!-- Telegram Notifications -->
+        <div style="margin-bottom: 24px; padding-top: 16px; border-top: 1px solid #374151;">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Telegram Notifications</h3>
+
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <p style="font-weight: 500;">Enable Telegram</p>
+                    <p style="font-size: 0.75rem; color: #6b7280;">Get notified on every trade fill, close, and error</p>
+                </div>
+                <div class="toggle-bg" id="telegramToggle" onclick="toggleTelegram()"></div>
+            </div>
+
+            <div id="telegramFields">
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Bot Token</label>
+                    <input class="input-field" id="telegramBotToken" type="text" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
+                    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Get from <a href="https://t.me/BotFather" target="_blank" style="color: #60a5fa;">@BotFather</a> on Telegram</p>
+                </div>
+
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Chat ID</label>
+                    <input class="input-field" id="telegramChatId" type="text" placeholder="123456789">
+                    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Get from <a href="https://t.me/userinfobot" target="_blank" style="color: #60a5fa;">@userinfobot</a> on Telegram</p>
+                </div>
+
+                <button type="button" class="btn-primary" style="width: 100%; background: #374151; margin-bottom: 8px;" onclick="testTelegram()">
+                    Send Test Message
+                </button>
+            </div>
+        </div>
+
+        <button type="submit" class="btn-primary" style="width: 100%;">Save Settings</button>
+    </form>
+
+    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 12px; text-align: center;" id="lastUpdated"></p>
+</div>
+
+<!-- Confirmation modal for disabling testnet -->
+<div class="modal-overlay" id="testnetConfirmModal">
+    <div class="modal-content">
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;">Switch to Live Trading?</h3>
+        <p style="font-size: 0.875rem; color: #9ca3af; margin-bottom: 8px;">
+            You are about to disable Testnet Mode. This means:
+        </p>
+        <ul style="font-size: 0.85rem; color: #d1d5db; margin-bottom: 20px; padding-left: 20px; list-style: disc;">
+            <li style="margin-bottom: 6px;">The bot will execute trades with <strong style="color: #fca5a5;">real money</strong></li>
+            <li style="margin-bottom: 6px;">Make sure your live Binance API keys are configured</li>
+            <li>Double-check your risk settings before enabling</li>
+        </ul>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="btn-primary" style="background: #374151;" onclick="cancelTestnetOff()">Cancel</button>
+            <button class="btn-danger" onclick="confirmTestnetOff()">Yes, go live</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let botActive = false;
+    let testnetMode = true;
+    let telegramEnabled = false;
+
+    async function loadSettings() {
+        const res = await fetch('/api/settings/');
+        const data = await res.json();
+
+        botActive = data.bot_active;
+        testnetMode = data.testnet_mode;
+        telegramEnabled = data.telegram_enabled || false;
+        document.getElementById('botToggle').className = `toggle-bg ${botActive ? 'active' : ''}`;
+        document.getElementById('testnetToggle').className = `toggle-bg ${testnetMode ? 'active' : ''}`;
+        document.getElementById('telegramToggle').className = `toggle-bg ${telegramEnabled ? 'active' : ''}`;
+        document.getElementById('testnetWarning').style.display = testnetMode ? 'none' : 'block';
+        document.getElementById('riskPerTrade').value = data.risk_per_trade;
+        document.getElementById('leverageOverride').value = data.leverage_override;
+        document.getElementById('dailyLossLimit').value = data.daily_loss_limit;
+        document.getElementById('maxDrawdown').value = data.max_drawdown;
+        document.getElementById('refreshInterval').value = data.positions_refresh_interval;
+        document.getElementById('telegramBotToken').value = data.telegram_bot_token || '';
+        document.getElementById('telegramChatId').value = data.telegram_chat_id || '';
+        document.getElementById('telegramFields').style.display = telegramEnabled ? 'block' : 'none';
+        document.getElementById('lastUpdated').textContent = `Last updated: ${new Date(data.updated_at).toLocaleString()}`;
+    }
+
+    function toggleBot() {
+        botActive = !botActive;
+        document.getElementById('botToggle').className = `toggle-bg ${botActive ? 'active' : ''}`;
+    }
+
+    function toggleTestnet() {
+        if (testnetMode) {
+            // Turning OFF testnet = going live → show confirmation
+            document.getElementById('testnetConfirmModal').style.display = 'flex';
+        } else {
+            // Turning ON testnet = safe direction, no confirmation needed
+            testnetMode = true;
+            document.getElementById('testnetToggle').className = 'toggle-bg active';
+            document.getElementById('testnetWarning').style.display = 'none';
+        }
+    }
+
+    function cancelTestnetOff() {
+        document.getElementById('testnetConfirmModal').style.display = 'none';
+    }
+
+    function confirmTestnetOff() {
+        testnetMode = false;
+        document.getElementById('testnetToggle').className = 'toggle-bg';
+        document.getElementById('testnetWarning').style.display = 'block';
+        document.getElementById('testnetConfirmModal').style.display = 'none';
+    }
+
+    function toggleTelegram() {
+        telegramEnabled = !telegramEnabled;
+        document.getElementById('telegramToggle').className = `toggle-bg ${telegramEnabled ? 'active' : ''}`;
+        document.getElementById('telegramFields').style.display = telegramEnabled ? 'block' : 'none';
+    }
+
+    async function testTelegram() {
+        const token = document.getElementById('telegramBotToken').value.trim();
+        const chatId = document.getElementById('telegramChatId').value.trim();
+        if (!token || !chatId) {
+            showToast('Enter bot token and chat ID first', 'error');
+            return;
+        }
+        try {
+            const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    chat_id: chatId,
+                    text: '✅ AlgoTrade Pro — Telegram connected!',
+                }),
+            });
+            if (res.ok) {
+                showToast('Test message sent! Check Telegram');
+            } else {
+                const err = await res.json();
+                showToast('Failed: ' + (err.description || 'Unknown error'), 'error');
+            }
+        } catch (e) {
+            showToast('Error: ' + e.message, 'error');
+        }
+    }
+
+    async function saveSettings(e) {
+        e.preventDefault();
+        const body = {
+            bot_active: botActive,
+            testnet_mode: testnetMode,
+            risk_per_trade: parseFloat(document.getElementById('riskPerTrade').value),
+            leverage_override: parseInt(document.getElementById('leverageOverride').value),
+            daily_loss_limit: parseFloat(document.getElementById('dailyLossLimit').value),
+            max_drawdown: parseFloat(document.getElementById('maxDrawdown').value),
+            positions_refresh_interval: parseInt(document.getElementById('refreshInterval').value),
+            telegram_enabled: telegramEnabled,
+            telegram_bot_token: document.getElementById('telegramBotToken').value.trim(),
+            telegram_chat_id: document.getElementById('telegramChatId').value.trim(),
+        };
+
+        const res = await fetch('/api/settings/', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+
+        if (res.ok) {
+            showToast('Settings saved');
+            loadSettings();
+            // Update the banner on this page immediately
+            refreshTestnetBanner();
+        } else {
+            showToast('Error saving settings', 'error');
+        }
+    }
+
+    function refreshTestnetBanner() {
+        fetch('/api/health').then(r => r.json()).then(data => {
+            const banner = document.getElementById('testnetBanner');
+            const main = document.getElementById('mainContent');
+            if (data.testnet) {
+                banner.style.display = 'block';
+                main.style.paddingTop = '60px';
+            } else {
+                banner.style.display = 'none';
+                main.style.paddingTop = '32px';
+            }
+        });
+    }
+
+    loadSettings();
+</script>
+{% endblock %}

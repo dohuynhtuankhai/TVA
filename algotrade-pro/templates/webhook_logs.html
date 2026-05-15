@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Webhook Logs – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Webhook Logs</h2>
+        <p style="color: #9ca3af; font-size: 0.875rem;">Every signal received from TradingView and its execution result</p>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="autoRefreshLabel" style="font-size: 0.75rem; color: #6b7280;">Auto-refresh: ON</span>
+        <div class="toggle-bg active" id="autoRefreshToggle" onclick="toggleAutoRefresh()"></div>
+    </div>
+</div>
+
+<!-- Stats Cards -->
+<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+    <div class="card stat-card" style="padding: 16px; text-align: center;">
+        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Total Signals</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="statTotal">0</p>
+    </div>
+    <div class="card stat-card" style="padding: 16px; text-align: center;">
+        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Success</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #6ee7b7;" id="statSuccess">0</p>
+    </div>
+    <div class="card stat-card" style="padding: 16px; text-align: center;">
+        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Failed</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fca5a5;" id="statFailed">0</p>
+    </div>
+    <div class="card stat-card" style="padding: 16px; text-align: center;">
+        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Avg Latency</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="statLatency">—</p>
+    </div>
+</div>
+
+<!-- Logs Table -->
+<div class="card" style="overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Action</th>
+                <th>Timeframe</th>
+                <th>Price</th>
+                <th>Status</th>
+                <th>Accounts</th>
+                <th>Latency</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody id="logsBody">
+            <tr><td colspan="9" style="text-align: center; color: #6b7280; padding: 32px;">Loading...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Details Modal -->
+<div class="modal-overlay" id="detailsModal">
+    <div class="modal-content" style="max-width: 600px;">
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Webhook Details</h3>
+        <pre id="detailsContent" style="background: #111827; padding: 16px; border-radius: 0.5rem; font-size: 0.8rem; overflow-x: auto; white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></pre>
+        <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+            <button class="btn-primary" style="background: #374151;" onclick="document.getElementById('detailsModal').style.display='none'">Close</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let autoRefresh = true;
+    let refreshTimer = null;
+
+    function toggleAutoRefresh() {
+        autoRefresh = !autoRefresh;
+        document.getElementById('autoRefreshToggle').className = `toggle-bg ${autoRefresh ? 'active' : ''}`;
+        document.getElementById('autoRefreshLabel').textContent = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
+        if (autoRefresh) startAutoRefresh();
+        else if (refreshTimer) clearInterval(refreshTimer);
+    }
+
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(loadLogs, 5000);
+    }
+
+    async function loadLogs() {
+        try {
+            const res = await fetch('/api/webhook-logs?limit=100');
+            const logs = await res.json();
+
+            // Stats
+            const total = logs.length;
+            const success = logs.filter(l => l.status === 'SUCCESS').length;
+            const failed = logs.filter(l => l.status === 'FAILED' || l.status === 'NO_MAPPING').length;
+            const latencies = logs.filter(l => l.execution_ms).map(l => l.execution_ms);
+            const avgLatency = latencies.length > 0 ? Math.round(latencies.reduce((a,b) => a+b, 0) / latencies.length) : 0;
+
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statSuccess').textContent = success;
+            document.getElementById('statFailed').textContent = failed;
+            document.getElementById('statLatency').textContent = avgLatency > 0 ? `${avgLatency}ms` : '—';
+
+            if (logs.length === 0) {
+                document.getElementById('logsBody').innerHTML = '<tr><td colspan="9" style="text-align: center; color: #6b7280; padding: 32px;">No webhooks received yet</td></tr>';
+                return;
+            }
+
+            let html = '';
+            for (const log of logs) {
+                const time = new Date(log.received_at).toLocaleString();
+                const actionClass = log.action === 'LONG' ? 'badge-green' : log.action === 'SHORT' ? 'badge-red' : 'badge-yellow';
+
+                let statusBadge;
+                if (log.status === 'SUCCESS') statusBadge = '<span class="badge-green">SUCCESS</span>';
+                else if (log.status === 'PARTIAL') statusBadge = '<span class="badge-yellow">PARTIAL</span>';
+                else if (log.status === 'FAILED') statusBadge = '<span class="badge-red">FAILED</span>';
+                else if (log.status === 'NO_MAPPING') statusBadge = '<span class="badge-yellow">NO MAPPING</span>';
+                else statusBadge = `<span class="badge-blue">${log.status}</span>`;
+
+                const price = log.price ? `$${log.price.toLocaleString()}` : '—';
+                const latency = log.execution_ms ? `${Math.round(log.execution_ms)}ms` : '—';
+                const acctInfo = `${log.accounts_filled}/${log.accounts_targeted}`;
+
+                html += `<tr>
+                    <td style="font-size: 0.8rem; white-space: nowrap;">${time}</td>
+                    <td><span class="badge-blue">${log.symbol}</span></td>
+                    <td><span class="${actionClass}">${log.action}</span></td>
+                    <td>${log.timeframe}</td>
+                    <td>${price}</td>
+                    <td>${statusBadge}</td>
+                    <td>${acctInfo} filled</td>
+                    <td>${latency}</td>
+                    <td><button onclick='showDetails(${JSON.stringify(log.details || "[]")})' style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">View</button></td>
+                </tr>`;
+            }
+            document.getElementById('logsBody').innerHTML = html;
+        } catch (e) {
+            console.error('Failed to load webhook logs:', e);
+        }
+    }
+
+    function showDetails(detailsJson) {
+        try {
+            const parsed = JSON.parse(detailsJson);
+            document.getElementById('detailsContent').textContent = JSON.stringify(parsed, null, 2);
+        } catch {
+            document.getElementById('detailsContent').textContent = detailsJson;
+        }
+        document.getElementById('detailsModal').style.display = 'flex';
+    }
+
+    // Refresh on trade events
+    function onTradeEvent(data) { loadLogs(); }
+
+    loadLogs();
+    startAutoRefresh();
+</script>
+{% endblock %}

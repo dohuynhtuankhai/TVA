@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login – AlgoTrade Pro</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: #111827; color: #f9fafb; font-family: 'Inter', sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .login-card { background: #1f2937; border: 1px solid #374151; border-radius: 0.75rem; padding: 40px; width: 100%; max-width: 400px; }
+        .logo { font-size: 1.5rem; font-weight: 700; text-align: center; margin-bottom: 8px; }
+        .subtitle { font-size: 0.85rem; color: #6b7280; text-align: center; margin-bottom: 32px; }
+        label { display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 6px; }
+        input { background: #374151; border: 1px solid #4b5563; color: #f9fafb; padding: 10px 14px; border-radius: 0.5rem; width: 100%; font-size: 0.9rem; outline: none; }
+        input:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3); }
+        .field { margin-bottom: 20px; }
+        .btn { background: #2563eb; color: white; padding: 10px 16px; border-radius: 0.5rem; font-weight: 500; cursor: pointer; border: none; width: 100%; font-size: 0.9rem; }
+        .btn:hover { background: #1d4ed8; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .error { background: #7f1d1d; color: #fca5a5; padding: 10px 14px; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 20px; display: none; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <p class="logo">&#9889; AlgoTrade Pro</p>
+        <p class="subtitle">Sign in to your trading dashboard</p>
+
+        <div class="error" id="errorMsg"></div>
+
+        <form onsubmit="handleLogin(event)">
+            <div class="field">
+                <label>Username</label>
+                <input type="text" id="username" autocomplete="username" required autofocus>
+            </div>
+            <div class="field">
+                <label>Password</label>
+                <input type="password" id="password" autocomplete="current-password" required>
+            </div>
+            <button type="submit" class="btn" id="loginBtn">Sign In</button>
+        </form>
+    </div>
+
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const errEl = document.getElementById('errorMsg');
+            btn.disabled = true;
+            btn.textContent = 'Signing in…';
+            errEl.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        username: document.getElementById('username').value,
+                        password: document.getElementById('password').value,
+                    }),
+                });
+
+                if (res.ok) {
+                    window.location.href = '/';
+                } else {
+                    const data = await res.json();
+                    errEl.textContent = data.detail || 'Invalid credentials';
+                    errEl.style.display = 'block';
+                }
+            } catch (err) {
+                errEl.textContent = 'Connection error';
+                errEl.style.display = 'block';
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+        }
+    </script>
+</body>
+</html>

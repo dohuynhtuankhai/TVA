@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% block title %}Open Positions – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Open Positions</h2>
+        <p style="color: #9ca3af; font-size: 0.875rem;">Live positions across all active accounts</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="font-size: 0.75rem; color: #6b7280;" id="refreshLabel">Auto-refresh: 10s</span>
+        <button class="btn-primary" onclick="loadPositions()" style="background: #374151;">Refresh</button>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+    <div class="card stat-card" style="padding: 16px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase;">Open Positions</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="totalPositions">—</p>
+    </div>
+    <div class="card stat-card" style="padding: 16px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase;">Total Notional</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="totalNotional">—</p>
+    </div>
+    <div class="card stat-card" style="padding: 16px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase;">Unrealized P&L</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="totalPnl">—</p>
+    </div>
+</div>
+
+<!-- Positions Table -->
+<div class="card" style="padding: 24px; overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Symbol</th>
+                <th>Side</th>
+                <th>Size</th>
+                <th>Entry Price</th>
+                <th>Mark Price</th>
+                <th>Notional</th>
+                <th>Leverage</th>
+                <th>Unrealized P&L</th>
+                <th>P&L %</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody id="positionsBody">
+            <tr><td colspan="11" style="text-align: center; color: #6b7280;">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Force Close Confirm Modal -->
+<div class="modal-overlay" id="closeModal">
+    <div class="modal-content">
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;">Force Close Position</h3>
+        <p style="font-size: 0.875rem; color: #d1d5db; margin-bottom: 8px;">
+            You are about to market-close this position:
+        </p>
+        <div style="background: #111827; border-radius: 0.5rem; padding: 12px; margin-bottom: 16px;">
+            <p style="font-size: 0.85rem; color: #9ca3af;">Account: <span style="color: #f9fafb; font-weight: 500;" id="closeAccount"></span></p>
+            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Symbol: <span style="color: #f9fafb; font-weight: 500;" id="closeSymbol"></span></p>
+            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Side: <span style="font-weight: 500;" id="closeSide"></span></p>
+            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Size: <span style="color: #f9fafb; font-weight: 500;" id="closeSize"></span></p>
+            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Unrealized P&L: <span style="font-weight: 500;" id="closePnl"></span></p>
+        </div>
+        <p style="font-size: 0.8rem; color: #fca5a5; margin-bottom: 16px;">This will execute a market order to close the position immediately.</p>
+        <div style="display: flex; gap: 8px; justify-content: flex-end;">
+            <button class="btn-primary" style="background: #374151;" onclick="cancelClose()">Cancel</button>
+            <button class="btn-danger" id="confirmCloseBtn" onclick="confirmClose()">Close Position</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let refreshInterval = 10;
+    let refreshTimer = null;
+    let pendingClose = null;
+
+    async function loadRefreshInterval() {
+        try {
+            const res = await fetch('/api/settings/');
+            const s = await res.json();
+            refreshInterval = s.positions_refresh_interval || 10;
+            document.getElementById('refreshLabel').textContent = `Auto-refresh: ${refreshInterval}s`;
+            startAutoRefresh();
+        } catch (e) {}
+    }
+
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(loadPositions, refreshInterval * 1000);
+    }
+
+    async function loadPositions() {
+        try {
+            const res = await fetch('/api/positions/');
+            const positions = await res.json();
+            const tbody = document.getElementById('positionsBody');
+
+            document.getElementById('totalPositions').textContent = positions.length;
+            const totalNotional = positions.reduce((s, p) => s + p.notional, 0);
+            document.getElementById('totalNotional').textContent = '$' + totalNotional.toLocaleString(undefined, {minimumFractionDigits: 2});
+            const totalPnl = positions.reduce((s, p) => s + p.unrealized_pnl, 0);
+            const pnlEl = document.getElementById('totalPnl');
+            pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + ' USDT';
+            pnlEl.className = totalPnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+            pnlEl.style.fontSize = '1.5rem';
+            pnlEl.style.fontWeight = '700';
+            pnlEl.style.marginTop = '4px';
+
+            if (positions.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align: center; color: #6b7280; padding: 32px;">No open positions</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = positions.map(p => {
+                const sideBadge = p.side === 'LONG'
+                    ? '<span class="badge-green">LONG</span>'
+                    : '<span class="badge-red">SHORT</span>';
+                const pnlClass = p.unrealized_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+                const pnlPctClass = p.pnl_percent >= 0 ? 'pnl-positive' : 'pnl-negative';
+                const posData = JSON.stringify(p).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                return `<tr>
+                    <td style="font-weight: 500;">${p.account_name}</td>
+                    <td style="font-weight: 500;">${p.symbol}</td>
+                    <td>${sideBadge}</td>
+                    <td>${p.size}</td>
+                    <td>${p.entry_price.toLocaleString()}</td>
+                    <td>${p.mark_price.toLocaleString()}</td>
+                    <td>$${p.notional.toLocaleString()}</td>
+                    <td>${p.leverage}x</td>
+                    <td class="${pnlClass}" style="font-weight: 500;">${p.unrealized_pnl >= 0 ? '+' : ''}${p.unrealized_pnl.toFixed(2)}</td>
+                    <td class="${pnlPctClass}">${p.pnl_percent >= 0 ? '+' : ''}${p.pnl_percent.toFixed(2)}%</td>
+                    <td><button onclick='openCloseModal(${posData})' class="btn-danger" style="padding: 4px 10px; font-size: 0.75rem;">Close</button></td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            console.error('Failed to load positions:', e);
+        }
+    }
+
+    function openCloseModal(pos) {
+        pendingClose = pos;
+        document.getElementById('closeAccount').textContent = pos.account_name;
+        document.getElementById('closeSymbol').textContent = pos.symbol;
+        const sideEl = document.getElementById('closeSide');
+        sideEl.textContent = pos.side;
+        sideEl.style.color = pos.side === 'LONG' ? '#6ee7b7' : '#fca5a5';
+        document.getElementById('closeSize').textContent = pos.size;
+        const pnlEl = document.getElementById('closePnl');
+        pnlEl.textContent = (pos.unrealized_pnl >= 0 ? '+' : '') + pos.unrealized_pnl.toFixed(2) + ' USDT';
+        pnlEl.style.color = pos.unrealized_pnl >= 0 ? '#6ee7b7' : '#fca5a5';
+        document.getElementById('confirmCloseBtn').disabled = false;
+        document.getElementById('confirmCloseBtn').textContent = 'Close Position';
+        document.getElementById('closeModal').style.display = 'flex';
+    }
+
+    function cancelClose() {
+        pendingClose = null;
+        document.getElementById('closeModal').style.display = 'none';
+    }
+
+    async function confirmClose() {
+        if (!pendingClose) return;
+        const btn = document.getElementById('confirmCloseBtn');
+        btn.disabled = true;
+        btn.textContent = 'Closing…';
+
+        try {
+            const res = await fetch('/api/positions/close', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    account_id: pendingClose.account_id,
+                    symbol: pendingClose.symbol,
+                }),
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`Closed ${pendingClose.symbol} on ${pendingClose.account_name}`);
+            } else {
+                showToast(data.detail || 'Failed to close position', 'error');
+            }
+        } catch (e) {
+            showToast('Network error', 'error');
+        }
+
+        cancelClose();
+        loadPositions();
+    }
+
+    function onTradeEvent() { loadPositions(); }
+    function onAccountAdded() { loadPositions(); }
+
+    loadPositions();
+    loadRefreshInterval();
+</script>
+{% endblock %}

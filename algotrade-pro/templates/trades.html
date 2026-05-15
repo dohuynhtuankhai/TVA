@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Order History – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Order History</h2>
+        <p style="color: #9ca3af; font-size: 0.875rem;">All trades across every account — better than Binance</p>
+    </div>
+    <button class="btn-primary" id="syncBtn" onclick="syncFromBinance()">Sync from Binance</button>
+</div>
+
+<!-- Stats Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
+    <div class="card stat-card" style="padding: 14px; text-align: center;">
+        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Total Trades</p>
+        <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statTotal">—</p>
+    </div>
+    <div class="card stat-card" style="padding: 14px; text-align: center;">
+        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Filled</p>
+        <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statFilled">—</p>
+    </div>
+    <div class="card stat-card" style="padding: 14px; text-align: center;">
+        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Errors</p>
+        <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statErrors">—</p>
+    </div>
+    <div class="card stat-card" style="padding: 14px; text-align: center;">
+        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Win Rate</p>
+        <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statWinRate">—</p>
+    </div>
+    <div class="card stat-card" style="padding: 14px; text-align: center;">
+        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Total P&L</p>
+        <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statPnl">—</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card" style="padding: 14px; margin-bottom: 16px;">
+    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+        <select class="input-field" id="filterAccount" style="max-width: 160px;">
+            <option value="">All accounts</option>
+        </select>
+        <input class="input-field" id="filterSymbol" placeholder="Symbol" style="max-width: 120px;">
+        <select class="input-field" id="filterSide" style="max-width: 110px;">
+            <option value="">All sides</option>
+            <option value="BUY">Buy</option>
+            <option value="SELL">Sell</option>
+        </select>
+        <select class="input-field" id="filterAction" style="max-width: 120px;">
+            <option value="">All actions</option>
+            <option value="LONG">Long</option>
+            <option value="SHORT">Short</option>
+            <option value="EXIT">Exit</option>
+        </select>
+        <select class="input-field" id="filterStatus" style="max-width: 120px;">
+            <option value="">All statuses</option>
+            <option value="FILLED">Filled</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="ERROR">Error</option>
+        </select>
+        <input class="input-field" id="filterDateFrom" type="date" style="max-width: 150px;">
+        <input class="input-field" id="filterDateTo" type="date" style="max-width: 150px;">
+        <button class="btn-primary" onclick="currentPage=0; loadTrades();">Filter</button>
+        <button class="btn-primary" style="background: #374151;" onclick="resetFilters()">Reset</button>
+    </div>
+</div>
+
+<!-- Trades Table -->
+<div class="card" style="padding: 20px; overflow-x: auto;">
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Account</th>
+                <th>Symbol</th>
+                <th>Action</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Qty</th>
+                <th>Value (USDT)</th>
+                <th>Leverage</th>
+                <th>Realized P&L</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="tradesBody">
+            <tr><td colspan="11" style="color: #6b7280;">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+<div style="display: flex; justify-content: center; gap: 8px; margin-top: 16px; align-items: center;">
+    <button class="btn-primary" style="background: #374151;" id="prevBtn" onclick="prevPage()">Previous</button>
+    <span style="padding: 8px 16px; color: #9ca3af; font-size: 0.85rem;" id="pageInfo">Page 1</span>
+    <button class="btn-primary" style="background: #374151;" id="nextBtn" onclick="nextPage()">Next</button>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 0;
+    const pageSize = 25;
+
+    async function loadAccountFilter() {
+        try {
+            const res = await fetch('/api/trades/accounts');
+            const accounts = await res.json();
+            const sel = document.getElementById('filterAccount');
+            accounts.forEach(a => {
+                const opt = document.createElement('option');
+                opt.value = a.id;
+                opt.textContent = a.name;
+                sel.appendChild(opt);
+            });
+        } catch (e) {}
+    }
+
+    async function loadStats() {
+        const accId = document.getElementById('filterAccount').value;
+        let url = '/api/trades/stats';
+        if (accId) url += `?account_id=${accId}`;
+        try {
+            const res = await fetch(url);
+            const s = await res.json();
+            document.getElementById('statTotal').textContent = s.total_trades;
+            document.getElementById('statFilled').textContent = s.filled_count;
+            document.getElementById('statErrors').textContent = s.error_count;
+            document.getElementById('statWinRate').textContent = s.win_rate + '%';
+
+            const pnlEl = document.getElementById('statPnl');
+            pnlEl.textContent = (s.total_pnl >= 0 ? '+' : '') + s.total_pnl.toFixed(2);
+            pnlEl.className = s.total_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+            pnlEl.style.fontSize = '1.25rem';
+            pnlEl.style.fontWeight = '700';
+            pnlEl.style.marginTop = '2px';
+        } catch (e) {}
+    }
+
+    async function loadTrades() {
+        const params = new URLSearchParams();
+        params.set('limit', pageSize);
+        params.set('offset', currentPage * pageSize);
+
+        const accId = document.getElementById('filterAccount').value;
+        const symbol = document.getElementById('filterSymbol').value;
+        const side = document.getElementById('filterSide').value;
+        const action = document.getElementById('filterAction').value;
+        const status = document.getElementById('filterStatus').value;
+        const dateFrom = document.getElementById('filterDateFrom').value;
+        const dateTo = document.getElementById('filterDateTo').value;
+
+        if (accId) params.set('account_id', accId);
+        if (symbol) params.set('symbol', symbol);
+        if (side) params.set('side', side);
+        if (action) params.set('action', action);
+        if (status) params.set('status', status);
+        if (dateFrom) params.set('date_from', dateFrom);
+        if (dateTo) params.set('date_to', dateTo);
+
+        const res = await fetch('/api/trades/?' + params.toString());
+        const trades = await res.json();
+        const tbody = document.getElementById('tradesBody');
+
+        document.getElementById('pageInfo').textContent = `Page ${currentPage + 1}`;
+        document.getElementById('prevBtn').disabled = currentPage === 0;
+        document.getElementById('nextBtn').disabled = trades.length < pageSize;
+
+        if (trades.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="11" style="color: #6b7280; padding: 32px;">No trades found</td></tr>';
+            loadStats();
+            return;
+        }
+
+        tbody.innerHTML = trades.map(t => {
+            const time = new Date(t.executed_at).toLocaleString();
+            const pnlClass = t.realized_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+            const statusBadge = t.status === 'FILLED' ? 'badge-green' : t.status === 'ERROR' ? 'badge-red' : 'badge-yellow';
+
+            let sideBadge = '';
+            if (t.side === 'BUY') sideBadge = '<span class="badge-green">BUY</span>';
+            else if (t.side === 'SELL') sideBadge = '<span class="badge-red">SELL</span>';
+            else sideBadge = t.side || '—';
+
+            let actionBadge = '';
+            if (t.action === 'LONG') actionBadge = '<span class="badge-green">LONG</span>';
+            else if (t.action === 'SHORT') actionBadge = '<span class="badge-red">SHORT</span>';
+            else if (t.action === 'EXIT') actionBadge = '<span class="badge-yellow">EXIT</span>';
+            else actionBadge = t.action || '—';
+
+            return `<tr>
+                <td style="font-size:0.75rem; color:#9ca3af; white-space:nowrap;">${time}</td>
+                <td style="font-weight:500;">${t.account_name}</td>
+                <td style="font-weight:500;">${t.symbol}</td>
+                <td>${actionBadge}</td>
+                <td>${sideBadge}</td>
+                <td>${t.entry_price ? t.entry_price.toLocaleString(undefined, {minimumFractionDigits: 2}) : '—'}</td>
+                <td>${t.quantity ? t.quantity.toFixed(4) : '—'}</td>
+                <td>${t.usdt_value ? t.usdt_value.toFixed(2) : '—'}</td>
+                <td>${t.leverage ? t.leverage + 'x' : '—'}</td>
+                <td class="${pnlClass}" style="font-weight:500;">${t.realized_pnl !== 0 ? (t.realized_pnl > 0 ? '+' : '') + t.realized_pnl.toFixed(2) : '—'}</td>
+                <td><span class="${statusBadge}">${t.status}</span></td>
+            </tr>`;
+        }).join('');
+
+        loadStats();
+    }
+
+    function resetFilters() {
+        document.getElementById('filterAccount').value = '';
+        document.getElementById('filterSymbol').value = '';
+        document.getElementById('filterSide').value = '';
+        document.getElementById('filterAction').value = '';
+        document.getElementById('filterStatus').value = '';
+        document.getElementById('filterDateFrom').value = '';
+        document.getElementById('filterDateTo').value = '';
+        currentPage = 0;
+        loadTrades();
+    }
+
+    function prevPage() { if (currentPage > 0) { currentPage--; loadTrades(); } }
+    function nextPage() { currentPage++; loadTrades(); }
+    function onTradeEvent() { loadTrades(); }
+
+    async function syncFromBinance() {
+        const btn = document.getElementById('syncBtn');
+        btn.disabled = true;
+        btn.textContent = 'Syncing…';
+
+        try {
+            const res = await fetch('/api/trades/sync', { method: 'POST' });
+            const data = await res.json();
+            if (res.ok) {
+                showToast(`Synced ${data.total_imported} new trades from Binance`);
+                loadTrades();
+                loadAccountFilter();
+            } else {
+                showToast(data.detail || 'Sync failed', 'error');
+            }
+        } catch (e) {
+            showToast('Sync error', 'error');
+        }
+
+        btn.disabled = false;
+        btn.textContent = 'Sync from Binance';
+    }
+
+    loadAccountFilter();
+    loadTrades();
+</script>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-size: 1.5rem; font-weight: 700;">Dashboard</h2>
+    <p style="color: #9ca3af; font-size: 0.875rem;">Real-time portfolio overview across all accounts</p>
+</div>
+
+<!-- Stat Cards -->
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px;">
+    <div class="card stat-card" style="padding: 20px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Balance</p>
+        <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalBalance">—</p>
+        <p style="color: #6b7280; font-size: 0.75rem;">USDT</p>
+    </div>
+    <div class="card stat-card" style="padding: 20px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Available Margin</p>
+        <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalMargin">—</p>
+        <p style="color: #6b7280; font-size: 0.75rem;">USDT</p>
+    </div>
+    <div class="card stat-card" style="padding: 20px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Margin Utilization</p>
+        <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="avgUtil">—</p>
+        <p style="color: #6b7280; font-size: 0.75rem;">Average %</p>
+    </div>
+    <div class="card stat-card" style="padding: 20px;">
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Trades</p>
+        <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalTrades">—</p>
+        <p style="color: #6b7280; font-size: 0.75rem;" id="totalPnlLabel">P&L: —</p>
+    </div>
+</div>
+
+<!-- Account Breakdown -->
+<div class="card" style="padding: 24px; margin-bottom: 32px;">
+    <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Account Balances</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Account</th>
+                <th>Wallet Balance</th>
+                <th>Available Margin</th>
+                <th>Utilization</th>
+            </tr>
+        </thead>
+        <tbody id="accountsTable">
+            <tr><td colspan="4" style="text-align: center; color: #6b7280;">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Recent Trades -->
+<div class="card" style="padding: 24px;">
+    <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Recent Trades</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Symbol</th>
+                <th>Action</th>
+                <th>Side</th>
+                <th>Qty</th>
+                <th>Price</th>
+                <th>Value</th>
+                <th>P&L</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody id="tradesTable">
+            <tr><td colspan="9" style="text-align: center; color: #6b7280;">Loading…</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadDashboard() {
+        try {
+            const res = await fetch('/api/dashboard');
+            const data = await res.json();
+            document.getElementById('totalBalance').textContent = data.total_balance.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('totalMargin').textContent = data.total_available_margin.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('avgUtil').textContent = data.avg_margin_utilization.toFixed(1) + '%';
+
+            const tbody = document.getElementById('accountsTable');
+            if (data.accounts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No active accounts</td></tr>';
+            } else {
+                tbody.innerHTML = data.accounts.map(a => `
+                    <tr>
+                        <td style="font-weight: 500;">${a.account_name}</td>
+                        <td>${a.wallet_balance.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td>${a.available_margin.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td><span class="badge-${a.margin_utilization > 80 ? 'red' : a.margin_utilization > 50 ? 'yellow' : 'green'}">${a.margin_utilization.toFixed(1)}%</span></td>
+                    </tr>
+                `).join('');
+            }
+        } catch (e) {
+            console.error('Dashboard load failed:', e);
+        }
+    }
+
+    async function loadStats() {
+        try {
+            const res = await fetch('/api/trades/stats');
+            const data = await res.json();
+            document.getElementById('totalTrades').textContent = data.total_trades;
+            const pnlEl = document.getElementById('totalPnlLabel');
+            pnlEl.textContent = `P&L: ${data.total_pnl >= 0 ? '+' : ''}${data.total_pnl.toFixed(2)} USDT`;
+            pnlEl.className = data.total_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+        } catch (e) {}
+    }
+
+    async function loadRecentTrades() {
+        try {
+            const res = await fetch('/api/trades/?limit=10');
+            const trades = await res.json();
+            const tbody = document.getElementById('tradesTable');
+            if (trades.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #6b7280;">No trades yet</td></tr>';
+            } else {
+                tbody.innerHTML = trades.map(t => {
+                    const time = new Date(t.executed_at).toLocaleString();
+                    const pnlClass = t.realized_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+                    const statusBadge = t.status === 'FILLED' ? 'badge-green' : t.status === 'ERROR' ? 'badge-red' : 'badge-yellow';
+                    return `<tr>
+                        <td style="font-size:0.8rem; color:#9ca3af;">${time}</td>
+                        <td style="font-weight:500;">${t.symbol}</td>
+                        <td>${t.action}</td>
+                        <td>${t.side}</td>
+                        <td>${t.quantity ? t.quantity.toFixed(4) : '—'}</td>
+                        <td>${t.entry_price ? t.entry_price.toLocaleString() : '—'}</td>
+                        <td>${t.usdt_value ? t.usdt_value.toFixed(2) : '—'}</td>
+                        <td class="${pnlClass}">${t.realized_pnl.toFixed(2)}</td>
+                        <td><span class="${statusBadge}">${t.status}</span></td>
+                    </tr>`;
+                }).join('');
+            }
+        } catch (e) {}
+    }
+
+    // WS event handlers
+    function onTradeEvent(data) {
+        loadRecentTrades();
+        loadStats();
+        loadDashboard();
+    }
+
+    // Initial load
+    loadDashboard();
+    loadStats();
+    loadRecentTrades();
+
+    // Auto-refresh every 30 seconds
+    setInterval(loadDashboard, 30000);
+</script>
+{% endblock %}

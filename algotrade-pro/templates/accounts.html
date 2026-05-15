@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+{% block title %}Accounts – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div>
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Exchange Accounts</h2>
+        <p style="color: #9ca3af; font-size: 0.875rem;">Manage your Binance Futures API connections and individual trading settings</p>
+    </div>
+    <button class="btn-primary" onclick="openAddModal()">+ Add Account</button>
+</div>
+
+<!-- Accounts List -->
+<div id="accountsList"></div>
+
+<!-- Add Account Modal -->
+<div class="modal-overlay" id="accountModal">
+    <div class="modal-content">
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;" id="modalTitle">Add Exchange Account</h3>
+        <form onsubmit="submitAccount(event)">
+            <input type="hidden" id="editAccountId">
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Account Name</label>
+                <input class="input-field" id="accName" placeholder="e.g. Main Trading" required>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">API Key</label>
+                <input class="input-field" id="accKey" placeholder="Binance API Key" required>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">API Secret</label>
+                <input class="input-field" id="accSecret" type="password" placeholder="Binance API Secret" required>
+            </div>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 12px;">Trading settings will be filled from your default Bot Settings. You can customize them per account after creation.</p>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button type="button" class="btn-primary" style="background: #374151;" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Edit Trading Settings Modal -->
+<div class="modal-overlay" id="settingsModal">
+    <div class="modal-content">
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Trading Settings</h3>
+        <form onsubmit="submitSettings(event)">
+            <input type="hidden" id="settingsAccountId">
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Trading Size Type</label>
+                <select class="input-field" id="setTradingType">
+                    <option value="percent">% of balance</option>
+                    <option value="fixed">Fixed USDT</option>
+                </select>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;" id="setTradingValueLabel">Trading Size Value</label>
+                <input class="input-field" id="setTradingValue" type="number" step="0.1" min="0.1" required>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;" id="setTradingValueHint">Percentage of account balance per trade</p>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Leverage</label>
+                <input class="input-field" id="setLeverage" type="number" min="1" max="125" required>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">1x – 125x</p>
+            </div>
+
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Stoploss %</label>
+                <input class="input-field" id="setStoploss" type="number" step="0.1" min="0" max="100" placeholder="Leave empty for no stoploss">
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Optional — auto-places a STOP_MARKET order after entry</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <div>
+                    <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Trail Activation %</label>
+                    <input class="input-field" id="setTrailActivation" type="number" step="0.1" min="0" max="50" placeholder="e.g. 2.0">
+                    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Profit % to activate trailing</p>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Trail Callback %</label>
+                    <input class="input-field" id="setTrailCallback" type="number" step="0.1" min="0.1" max="10" placeholder="e.g. 1.0">
+                    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Trail distance from peak</p>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Trade Mode</label>
+                <select class="input-field" id="setTradeMode">
+                    <option value="single">Single — close existing before new entry</option>
+                    <option value="multi">Multi — allow multiple positions per pair</option>
+                </select>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Single: always 1 position per pair. Multi: stack positions.</p>
+            </div>
+
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button type="button" class="btn-primary" style="background: #374151;" onclick="closeSettingsModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Save Settings</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Symbol Mapping Modal -->
+<div class="modal-overlay" id="mappingModal">
+    <div class="modal-content">
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Add Symbol Mapping</h3>
+        <form onsubmit="submitMapping(event)">
+            <input type="hidden" id="mappingAccountId">
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Symbol</label>
+                <input class="input-field" id="mapSymbol" placeholder="e.g. BTCUSDT" required style="text-transform: uppercase;">
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Validated against Binance Futures</p>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Timeframe</label>
+                <input class="input-field" id="mapTimeframe" placeholder="e.g. 5m, 15m, 1h, 4h" required>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Auto-converted to TradingView format (5m → 5, 1h → 60)</p>
+            </div>
+            <p id="mappingError" style="font-size: 0.8rem; color: #fca5a5; margin-bottom: 12px; display: none;"></p>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button type="button" class="btn-primary" style="background: #374151;" onclick="closeMappingModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Add Mapping</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function loadAccounts() {
+        const res = await fetch('/api/accounts/');
+        const accounts = await res.json();
+        const container = document.getElementById('accountsList');
+
+        if (accounts.length === 0) {
+            container.innerHTML = `
+                <div class="card" style="padding: 48px; text-align: center;">
+                    <p style="color: #6b7280; margin-bottom: 16px;">No exchange accounts configured yet.</p>
+                    <button class="btn-primary" onclick="openAddModal()">Add Your First Account</button>
+                </div>`;
+            return;
+        }
+
+        // Fetch balances to compute initial size
+        let balanceMap = {};
+        try {
+            const dashRes = await fetch('/api/dashboard');
+            const dashData = await dashRes.json();
+            for (const snap of dashData.accounts) {
+                balanceMap[snap.account_id] = snap.wallet_balance;
+            }
+        } catch (e) {}
+
+        let html = '';
+        for (const acct of accounts) {
+            const mapRes = await fetch(`/api/accounts/${acct.id}/mappings`);
+            const mappings = await mapRes.json();
+
+            const statusBadge = acct.futures_enabled
+                ? '<span class="badge-green">Trading Enabled</span>'
+                : '<span class="badge-red">No Futures</span>';
+            const activeBadge = acct.is_active
+                ? '<span class="badge-green">Active</span>'
+                : '<span class="badge-yellow">Inactive</span>';
+
+            const balance = balanceMap[acct.id] || 0;
+            let initialSize;
+            if (acct.trading_size_type === 'fixed') {
+                initialSize = acct.trading_size_value;
+            } else {
+                initialSize = balance * (acct.trading_size_value / 100);
+            }
+
+            const sizeLabel = acct.trading_size_type === 'fixed'
+                ? `${acct.trading_size_value} USDT`
+                : `${acct.trading_size_value}%`;
+            const initialSizeLabel = `$${initialSize.toFixed(2)}`;
+            const slLabel = acct.stoploss_percent ? `${acct.stoploss_percent}%` : 'None';
+            const trailLabel = acct.trail_callback_pct ? `${acct.trail_activation_pct || 0}% / ${acct.trail_callback_pct}%` : 'None';
+            const modeLabel = acct.trade_mode === 'multi' ? 'Multi' : 'Single';
+
+            const mappingRows = mappings.length > 0
+                ? mappings.map(m => `
+                    <tr>
+                        <td><span class="badge-blue">${m.symbol}</span></td>
+                        <td>${m.timeframe}</td>
+                        <td><button onclick="deleteMapping(${m.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Remove</button></td>
+                    </tr>`).join('')
+                : '<tr><td colspan="3" style="text-align: center; color: #6b7280; font-size: 0.8rem;">No mappings</td></tr>';
+
+            html += `
+                <div class="card" style="padding: 20px; margin-bottom: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
+                        <div>
+                            <h4 style="font-size: 1.125rem; font-weight: 600;">${acct.name}</h4>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Key: ${acct.api_key_preview}</p>
+                        </div>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            ${statusBadge} ${activeBadge}
+                            <button onclick="toggleActive(${acct.id}, ${!acct.is_active})" style="color: #9ca3af; background: none; border: none; cursor: pointer; font-size: 0.75rem;">${acct.is_active ? 'Deactivate' : 'Activate'}</button>
+                            <button onclick="deleteAccount(${acct.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.75rem;">Delete</button>
+                        </div>
+                    </div>
+
+                    <!-- Per-account Trading Settings -->
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 8px; padding: 12px 12px 4px; background: #111827; border-radius: 0.5rem 0.5rem 0 0; text-align: center;">
+                        <div>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Size</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${sizeLabel}</p>
+                        </div>
+                        <div>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Initial</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px; color: #93c5fd;">${initialSizeLabel}</p>
+                        </div>
+                        <div>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Leverage</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${acct.leverage}x</p>
+                        </div>
+                        <div>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Mode</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${modeLabel}</p>
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; padding: 4px 12px 12px; background: #111827; border-radius: 0 0 0.5rem 0.5rem; text-align: center;">
+                        <div>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Stoploss</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${slLabel}</p>
+                        </div>
+                        <div>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Trailing Stop</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${trailLabel}</p>
+                        </div>
+                        <div></div>
+                        <div style="display: flex; align-items: center; justify-content: flex-end;">
+                            <button onclick='openSettingsModal(${JSON.stringify(acct)})' style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Edit Settings</button>
+                        </div>
+                    </div>
+
+                    <!-- Symbol Mappings -->
+                    <div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <h5 style="font-size: 0.875rem; font-weight: 500; color: #9ca3af;">Symbol Mappings</h5>
+                            <button onclick="openMappingModal(${acct.id})" style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">+ Add</button>
+                        </div>
+                        <table>
+                            <thead><tr><th>Symbol</th><th>Timeframe</th><th></th></tr></thead>
+                            <tbody>${mappingRows}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+        }
+        container.innerHTML = html;
+    }
+
+    function openAddModal() {
+        document.getElementById('modalTitle').textContent = 'Add Exchange Account';
+        document.getElementById('editAccountId').value = '';
+        document.getElementById('accName').value = '';
+        document.getElementById('accKey').value = '';
+        document.getElementById('accSecret').value = '';
+        document.getElementById('accountModal').style.display = 'flex';
+    }
+
+    function closeModal() { document.getElementById('accountModal').style.display = 'none'; }
+
+    function openSettingsModal(acct) {
+        document.getElementById('settingsAccountId').value = acct.id;
+        document.getElementById('setTradingType').value = acct.trading_size_type;
+        document.getElementById('setTradingValue').value = acct.trading_size_value;
+        document.getElementById('setLeverage').value = acct.leverage;
+        document.getElementById('setStoploss').value = acct.stoploss_percent || '';
+        document.getElementById('setTrailActivation').value = acct.trail_activation_pct || '';
+        document.getElementById('setTrailCallback').value = acct.trail_callback_pct || '';
+        document.getElementById('setTradeMode').value = acct.trade_mode || 'single';
+        updateTradingHint();
+        document.getElementById('settingsModal').style.display = 'flex';
+    }
+
+    function closeSettingsModal() { document.getElementById('settingsModal').style.display = 'none'; }
+
+    function updateTradingHint() {
+        const type = document.getElementById('setTradingType').value;
+        const label = document.getElementById('setTradingValueLabel');
+        const hint = document.getElementById('setTradingValueHint');
+        if (type === 'fixed') {
+            label.textContent = 'Trading Size (USDT)';
+            hint.textContent = 'Fixed USDT amount per trade';
+        } else {
+            label.textContent = 'Trading Size (%)';
+            hint.textContent = 'Percentage of account balance per trade';
+        }
+    }
+
+    document.getElementById('setTradingType').addEventListener('change', updateTradingHint);
+
+    function openMappingModal(accountId) {
+        document.getElementById('mappingAccountId').value = accountId;
+        document.getElementById('mapSymbol').value = '';
+        document.getElementById('mapTimeframe').value = '';
+        document.getElementById('mappingModal').style.display = 'flex';
+    }
+
+    function closeMappingModal() { document.getElementById('mappingModal').style.display = 'none'; }
+
+    async function submitAccount(e) {
+        e.preventDefault();
+        const id = document.getElementById('editAccountId').value;
+        const body = {
+            name: document.getElementById('accName').value,
+            api_key: document.getElementById('accKey').value,
+            api_secret: document.getElementById('accSecret').value,
+        };
+        const url = id ? `/api/accounts/${id}` : '/api/accounts/';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        if (res.ok) {
+            closeModal();
+            showToast('Account saved — syncing trade history from Binance...');
+            loadAccounts();
+        } else {
+            const err = await res.json();
+            showToast(err.detail || 'Error saving account', 'error');
+        }
+    }
+
+    async function submitSettings(e) {
+        e.preventDefault();
+        const id = document.getElementById('settingsAccountId').value;
+        const slVal = document.getElementById('setStoploss').value;
+        const trailAct = document.getElementById('setTrailActivation').value;
+        const trailCb = document.getElementById('setTrailCallback').value;
+        const body = {
+            trading_size_type: document.getElementById('setTradingType').value,
+            trading_size_value: parseFloat(document.getElementById('setTradingValue').value),
+            leverage: parseInt(document.getElementById('setLeverage').value),
+            stoploss_percent: slVal ? parseFloat(slVal) : null,
+            trail_activation_pct: trailAct ? parseFloat(trailAct) : null,
+            trail_callback_pct: trailCb ? parseFloat(trailCb) : null,
+            trade_mode: document.getElementById('setTradeMode').value,
+        };
+        const res = await fetch(`/api/accounts/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        if (res.ok) {
+            closeSettingsModal();
+            showToast('Trading settings updated');
+            loadAccounts();
+        } else {
+            showToast('Error updating settings', 'error');
+        }
+    }
+
+    async function submitMapping(e) {
+        e.preventDefault();
+        const errorEl = document.getElementById('mappingError');
+        errorEl.style.display = 'none';
+        const body = {
+            symbol: document.getElementById('mapSymbol').value.toUpperCase().trim(),
+            timeframe: document.getElementById('mapTimeframe').value.trim(),
+            account_id: parseInt(document.getElementById('mappingAccountId').value),
+        };
+        const res = await fetch('/api/accounts/mappings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        if (res.ok) { closeMappingModal(); showToast('Mapping added'); loadAccounts(); }
+        else {
+            const err = await res.json();
+            const msg = err.detail || 'Error adding mapping';
+            errorEl.textContent = msg;
+            errorEl.style.display = 'block';
+            showToast(msg, 'error');
+        }
+    }
+
+    async function deleteAccount(id) {
+        if (!confirm('Delete this account and all its mappings?')) return;
+        await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+        showToast('Account deleted');
+        loadAccounts();
+    }
+
+    async function deleteMapping(id) {
+        await fetch(`/api/accounts/mappings/${id}`, { method: 'DELETE' });
+        showToast('Mapping removed');
+        loadAccounts();
+    }
+
+    async function toggleActive(id, active) {
+        await fetch(`/api/accounts/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ is_active: active }),
+        });
+        loadAccounts();
+    }
+
+    loadAccounts();
+</script>
+{% endblock %}
