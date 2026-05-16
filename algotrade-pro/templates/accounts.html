@@ -14,7 +14,7 @@
 <div id="accountsList"></div>
 
 <!-- Add Account Modal -->
-<div class="modal-overlay" id="accountModal">
+<div class="modal-overlay" id="accountModal" role="dialog" aria-modal="true" aria-label="Add exchange account">
     <div class="modal-content">
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;" id="modalTitle">Add Exchange Account</h3>
         <form onsubmit="submitAccount(event)">
@@ -41,7 +41,7 @@
 </div>
 
 <!-- Edit Trading Settings Modal -->
-<div class="modal-overlay" id="settingsModal">
+<div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-label="Trading settings">
     <div class="modal-content">
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Trading Settings</h3>
         <form onsubmit="submitSettings(event)">
@@ -104,7 +104,7 @@
 </div>
 
 <!-- Symbol Mapping Modal -->
-<div class="modal-overlay" id="mappingModal">
+<div class="modal-overlay" id="mappingModal" role="dialog" aria-modal="true" aria-label="Add symbol mapping">
     <div class="modal-content">
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Add Symbol Mapping</h3>
         <form onsubmit="submitMapping(event)">
@@ -131,6 +131,9 @@
 
 {% block scripts %}
 <script>
+    // Store account data by ID for safe onclick access (avoids inline JSON injection)
+    const _accountCache = {};
+
     async function loadAccounts() {
         const res = await fetch('/api/accounts/');
         const accounts = await res.json();
@@ -157,6 +160,7 @@
 
         let html = '';
         for (const acct of accounts) {
+            _accountCache[acct.id] = acct;
             const mapRes = await fetch(`/api/accounts/${acct.id}/mappings`);
             const mappings = await mapRes.json();
 
@@ -236,7 +240,7 @@
                         </div>
                         <div></div>
                         <div style="display: flex; align-items: center; justify-content: flex-end;">
-                            <button onclick='openSettingsModal(${JSON.stringify(acct)})' style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Edit Settings</button>
+                            <button data-acct-id="${acct.id}" onclick="openSettingsForAccount(this)" style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Edit Settings</button>
                         </div>
                     </div>
 
@@ -266,6 +270,12 @@
     }
 
     function closeModal() { document.getElementById('accountModal').style.display = 'none'; }
+
+    function openSettingsForAccount(btn) {
+        const id = parseInt(btn.dataset.acctId);
+        const acct = _accountCache[id];
+        if (acct) openSettingsModal(acct);
+    }
 
     function openSettingsModal(acct) {
         document.getElementById('settingsAccountId').value = acct.id;
@@ -308,22 +318,30 @@
 
     async function submitAccount(e) {
         e.preventDefault();
-        const id = document.getElementById('editAccountId').value;
-        const body = {
-            name: document.getElementById('accName').value,
-            api_key: document.getElementById('accKey').value,
-            api_secret: document.getElementById('accSecret').value,
-        };
-        const url = id ? `/api/accounts/${id}` : '/api/accounts/';
-        const method = id ? 'PUT' : 'POST';
-        const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
-        if (res.ok) {
-            closeModal();
-            showToast('Account saved — syncing trade history from Binance...');
-            loadAccounts();
-        } else {
-            const err = await res.json();
-            showToast(err.detail || 'Error saving account', 'error');
+        const btn = e.submitter || e.target.querySelector('button[type="submit"]');
+        btn.disabled = true;
+        btn.textContent = 'Saving…';
+        try {
+            const id = document.getElementById('editAccountId').value;
+            const body = {
+                name: document.getElementById('accName').value,
+                api_key: document.getElementById('accKey').value,
+                api_secret: document.getElementById('accSecret').value,
+            };
+            const url = id ? `/api/accounts/${id}` : '/api/accounts/';
+            const method = id ? 'PUT' : 'POST';
+            const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+            if (res.ok) {
+                closeModal();
+                showToast('Account saved — syncing trade history from Binance...');
+                loadAccounts();
+            } else {
+                const err = await res.json();
+                showToast(err.detail || 'Error saving account', 'error');
+            }
+        } finally {
+            btn.disabled = false;
+            btn.textContent = 'Save';
         }
     }
 

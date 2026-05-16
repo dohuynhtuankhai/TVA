@@ -87,6 +87,13 @@ async def get_dashboard_data(db: AsyncSession = Depends(get_db)):
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket for real-time dashboard updates."""
+    # Authenticate via session cookie before accepting
+    from auth import validate_session
+    session_id = websocket.cookies.get("algotrade_session")
+    if not validate_session(session_id):
+        await websocket.close(code=4001, reason="Not authenticated")
+        return
+
     await ws_manager.connect(websocket)
     try:
         while True:

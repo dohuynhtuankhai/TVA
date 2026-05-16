@@ -49,6 +49,7 @@ async def create_binance_client(api_key: str, api_secret: str, testnet: bool | N
         api_key=api_key,
         api_secret=api_secret,
         testnet=testnet,
+        requests_params={"timeout": 15},
     )
     if testnet:
         client.FUTURES_URL = settings.BINANCE_TESTNET_API_URL + "/fapi"

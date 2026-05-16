@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AlgoTrade Pro{% endblock %}</title>
+    <meta name="description" content="AlgoTrade Pro – Self-hosted trading bot bridging TradingView to Binance Futures">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⚡</text></svg>">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
     <style>
@@ -89,7 +91,7 @@
                 <span class="ws-dot" id="wsStatus"></span>
                 <span id="wsLabel">Connecting…</span>
             </div>
-            <button onclick="handleLogout()" style="color: #9ca3af; background: none; border: none; cursor: pointer; font-size: 0.75rem;">Logout</button>
+            <button onclick="handleLogout()" style="color: #9ca3af; background: none; border: none; cursor: pointer; font-size: 0.75rem;" aria-label="Logout">Logout</button>
         </div>
     </div>
 </aside>

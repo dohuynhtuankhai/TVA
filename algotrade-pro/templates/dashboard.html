@@ -97,7 +97,7 @@
                 `).join('');
             }
         } catch (e) {
-            console.error('Dashboard load failed:', e);
+            showToast('Failed to load dashboard data', 'error');
         }
     }
 

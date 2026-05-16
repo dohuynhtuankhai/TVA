@@ -54,7 +54,7 @@
 </div>
 
 <!-- Force Close Confirm Modal -->
-<div class="modal-overlay" id="closeModal">
+<div class="modal-overlay" id="closeModal" role="dialog" aria-modal="true" aria-label="Force close position">
     <div class="modal-content">
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;">Force Close Position</h3>
         <p style="font-size: 0.875rem; color: #d1d5db; margin-bottom: 8px;">
@@ -141,7 +141,7 @@
                 </tr>`;
             }).join('');
         } catch (e) {
-            console.error('Failed to load positions:', e);
+            showToast('Failed to load positions', 'error');
         }
     }
 
