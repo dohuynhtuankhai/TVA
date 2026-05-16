@@ -1,12 +1,17 @@
 """Bot settings endpoints."""
 
-from fastapi import APIRouter, Depends
+import logging
+
+import aiohttp
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from models import BotSettings
 from schemas import BotSettingsResponse, BotSettingsUpdate
+
+logger = logging.getLogger("algotrade.settings")
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -67,3 +72,33 @@ async def update_settings(
     await db.commit()
     await db.refresh(settings)
     return settings
+
+
+@router.post("/test-telegram")
+async def test_telegram(db: AsyncSession = Depends(get_db)):
+    """Send a test message via Telegram using saved config (server-side)."""
+    settings = await _get_or_create(db)
+
+    if not settings.telegram_bot_token or not settings.telegram_chat_id:
+        raise HTTPException(400, "Telegram bot token and chat ID must be configured first")
+
+    try:
+        url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
+        payload = {
+            "chat_id": settings.telegram_chat_id,
+            "text": "✅ AlgoTrade Pro — Telegram connected!",
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                data = await resp.json()
+                if resp.status == 200 and data.get("ok"):
+                    return {"status": "ok", "message": "Test message sent"}
+                else:
+                    desc = data.get("description", "Unknown error")
+                    logger.warning("Telegram test failed: %s", desc)
+                    raise HTTPException(400, f"Telegram error: {desc}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning("Telegram test error: %s", str(e))
+        raise HTTPException(500, f"Failed to send: {str(e)}")

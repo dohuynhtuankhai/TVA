@@ -89,10 +89,10 @@
             } else {
                 tbody.innerHTML = data.accounts.map(a => `
                     <tr>
-                        <td style="font-weight: 500;">${a.account_name}</td>
-                        <td>${a.wallet_balance.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                        <td>${a.available_margin.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                        <td><span class="badge-${a.margin_utilization > 80 ? 'red' : a.margin_utilization > 50 ? 'yellow' : 'green'}">${a.margin_utilization.toFixed(1)}%</span></td>
+                        <td style="font-weight: 500;">${esc(a.account_name)}</td>
+                        <td>${Number(a.wallet_balance).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td>${Number(a.available_margin).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td><span class="badge-${a.margin_utilization > 80 ? 'red' : a.margin_utilization > 50 ? 'yellow' : 'green'}">${Number(a.margin_utilization).toFixed(1)}%</span></td>
                     </tr>
                 `).join('');
             }
@@ -125,15 +125,15 @@
                     const pnlClass = t.realized_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
                     const statusBadge = t.status === 'FILLED' ? 'badge-green' : t.status === 'ERROR' ? 'badge-red' : 'badge-yellow';
                     return `<tr>
-                        <td style="font-size:0.8rem; color:#9ca3af;">${time}</td>
-                        <td style="font-weight:500;">${t.symbol}</td>
-                        <td>${t.action}</td>
-                        <td>${t.side}</td>
-                        <td>${t.quantity ? t.quantity.toFixed(4) : '—'}</td>
-                        <td>${t.entry_price ? t.entry_price.toLocaleString() : '—'}</td>
-                        <td>${t.usdt_value ? t.usdt_value.toFixed(2) : '—'}</td>
-                        <td class="${pnlClass}">${t.realized_pnl.toFixed(2)}</td>
-                        <td><span class="${statusBadge}">${t.status}</span></td>
+                        <td style="font-size:0.8rem; color:#9ca3af;">${esc(time)}</td>
+                        <td style="font-weight:500;">${esc(t.symbol)}</td>
+                        <td>${esc(t.action)}</td>
+                        <td>${esc(t.side)}</td>
+                        <td>${t.quantity ? Number(t.quantity).toFixed(4) : '—'}</td>
+                        <td>${t.entry_price ? Number(t.entry_price).toLocaleString() : '—'}</td>
+                        <td>${t.usdt_value ? Number(t.usdt_value).toFixed(2) : '—'}</td>
+                        <td class="${pnlClass}">${Number(t.realized_pnl).toFixed(2)}</td>
+                        <td><span class="${statusBadge}">${esc(t.status)}</span></td>
                     </tr>`;
                 }).join('');
             }

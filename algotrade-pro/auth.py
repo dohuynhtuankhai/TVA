@@ -1,10 +1,11 @@
 """Simple session-based authentication with in-memory session cache."""
 
-import hashlib
 import hmac
 import secrets
 import time
 from typing import Optional
+
+import bcrypt
 
 from config import settings
 
@@ -14,8 +15,13 @@ _sessions: dict[str, dict] = {}
 
 
 def _hash_password(password: str) -> str:
-    """SHA-256 hash for comparison (not stored, just for runtime check)."""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """bcrypt hash for secure password storage."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
+
+def _check_password(password: str, hashed: str) -> bool:
+    """Verify password against bcrypt hash."""
+    return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
 # Pre-compute the expected hash at startup
@@ -25,7 +31,7 @@ _expected_hash = _hash_password(settings.AUTH_PASSWORD)
 def verify_credentials(username: str, password: str) -> bool:
     """Check username and password against config values."""
     username_ok = hmac.compare_digest(username, settings.AUTH_USERNAME)
-    password_ok = hmac.compare_digest(_hash_password(password), _expected_hash)
+    password_ok = _check_password(password, _expected_hash)
     return username_ok and password_ok
 
 

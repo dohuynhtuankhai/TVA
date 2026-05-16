@@ -180,18 +180,18 @@
             let sideBadge = '';
             if (t.side === 'BUY') sideBadge = '<span class="badge-green">BUY</span>';
             else if (t.side === 'SELL') sideBadge = '<span class="badge-red">SELL</span>';
-            else sideBadge = t.side || '—';
+            else sideBadge = esc(t.side) || '—';
 
             let actionBadge = '';
             if (t.action === 'LONG') actionBadge = '<span class="badge-green">LONG</span>';
             else if (t.action === 'SHORT') actionBadge = '<span class="badge-red">SHORT</span>';
             else if (t.action === 'EXIT') actionBadge = '<span class="badge-yellow">EXIT</span>';
-            else actionBadge = t.action || '—';
+            else actionBadge = esc(t.action) || '—';
 
             return `<tr>
-                <td style="font-size:0.75rem; color:#9ca3af; white-space:nowrap;">${time}</td>
-                <td style="font-weight:500;">${t.account_name}</td>
-                <td style="font-weight:500;">${t.symbol}</td>
+                <td style="font-size:0.75rem; color:#9ca3af; white-space:nowrap;">${esc(time)}</td>
+                <td style="font-weight:500;">${esc(t.account_name)}</td>
+                <td style="font-weight:500;">${esc(t.symbol)}</td>
                 <td>${actionBadge}</td>
                 <td>${sideBadge}</td>
                 <td>${t.entry_price ? t.entry_price.toLocaleString(undefined, {minimumFractionDigits: 2}) : '—'}</td>
@@ -199,7 +199,7 @@
                 <td>${t.usdt_value ? t.usdt_value.toFixed(2) : '—'}</td>
                 <td>${t.leverage ? t.leverage + 'x' : '—'}</td>
                 <td class="${pnlClass}" style="font-weight:500;">${t.realized_pnl !== 0 ? (t.realized_pnl > 0 ? '+' : '') + t.realized_pnl.toFixed(2) : '—'}</td>
-                <td><span class="${statusBadge}">${t.status}</span></td>
+                <td><span class="${statusBadge}">${esc(t.status)}</span></td>
             </tr>`;
         }).join('');
 

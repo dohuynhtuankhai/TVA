@@ -127,8 +127,8 @@
                 const pnlPctClass = p.pnl_percent >= 0 ? 'pnl-positive' : 'pnl-negative';
                 const posData = JSON.stringify(p).replace(/'/g, "\\'").replace(/"/g, '&quot;');
                 return `<tr>
-                    <td style="font-weight: 500;">${p.account_name}</td>
-                    <td style="font-weight: 500;">${p.symbol}</td>
+                    <td style="font-weight: 500;">${esc(p.account_name)}</td>
+                    <td style="font-weight: 500;">${esc(p.symbol)}</td>
                     <td>${sideBadge}</td>
                     <td>${p.size}</td>
                     <td>${p.entry_price.toLocaleString()}</td>

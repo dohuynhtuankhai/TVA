@@ -1,5 +1,6 @@
 """Open positions endpoint – fetches live positions from Binance for each account."""
 
+import asyncio
 import logging
 
 from binance.enums import SIDE_BUY, SIDE_SELL, FUTURE_ORDER_TYPE_MARKET
@@ -21,9 +22,52 @@ router = APIRouter(prefix="/api/positions", tags=["positions"])
 logger = logging.getLogger("algotrade.positions")
 
 
+async def _fetch_account_positions(acct: ExchangeAccount) -> list[dict]:
+    """Fetch positions for a single account (used in parallel gather)."""
+    client = None
+    positions_out = []
+    try:
+        secret = decrypt_secret(acct.api_secret_encrypted)
+        client = await create_binance_client(acct.api_key, secret)
+        positions = await client.futures_position_information()
+
+        for p in positions:
+            amt = float(p.get("positionAmt", 0))
+            if amt == 0:
+                continue
+
+            entry_price = float(p.get("entryPrice", 0))
+            mark_price = float(p.get("markPrice", 0))
+            unrealized_pnl = float(p.get("unRealizedProfit", 0))
+            leverage = int(p.get("leverage", 1))
+            notional = abs(float(p.get("notional", 0)))
+
+            positions_out.append({
+                "account_id": acct.id,
+                "account_name": acct.name,
+                "symbol": p.get("symbol", ""),
+                "side": "LONG" if amt > 0 else "SHORT",
+                "size": abs(amt),
+                "entry_price": entry_price,
+                "mark_price": mark_price,
+                "notional": round(notional, 2),
+                "unrealized_pnl": round(unrealized_pnl, 2),
+                "leverage": leverage,
+                "pnl_percent": round(
+                    (unrealized_pnl / (notional / leverage) * 100) if notional > 0 and leverage > 0 else 0, 2
+                ),
+            })
+    except Exception as e:
+        logger.error("Failed to fetch positions for %s: %s", acct.name, e)
+    finally:
+        if client:
+            await client.close_connection()
+    return positions_out
+
+
 @router.get("/")
 async def get_open_positions(db: AsyncSession = Depends(get_db)):
-    """Fetch all open futures positions across all active accounts."""
+    """Fetch all open futures positions across all active accounts in parallel."""
     result = await db.execute(
         select(ExchangeAccount).where(
             ExchangeAccount.is_active == True,  # noqa: E712
@@ -32,47 +76,15 @@ async def get_open_positions(db: AsyncSession = Depends(get_db)):
     )
     accounts = result.scalars().all()
 
+    # Fetch all accounts in parallel
+    results = await asyncio.gather(
+        *[_fetch_account_positions(acct) for acct in accounts]
+    )
+
+    # Flatten list of lists
     all_positions = []
-
-    for acct in accounts:
-        client = None
-        try:
-            secret = decrypt_secret(acct.api_secret_encrypted)
-            client = await create_binance_client(acct.api_key, secret)
-            positions = await client.futures_position_information()
-
-            for p in positions:
-                amt = float(p.get("positionAmt", 0))
-                if amt == 0:
-                    continue
-
-                entry_price = float(p.get("entryPrice", 0))
-                mark_price = float(p.get("markPrice", 0))
-                unrealized_pnl = float(p.get("unRealizedProfit", 0))
-                leverage = int(p.get("leverage", 1))
-                notional = abs(float(p.get("notional", 0)))
-
-                all_positions.append({
-                    "account_id": acct.id,
-                    "account_name": acct.name,
-                    "symbol": p.get("symbol", ""),
-                    "side": "LONG" if amt > 0 else "SHORT",
-                    "size": abs(amt),
-                    "entry_price": entry_price,
-                    "mark_price": mark_price,
-                    "notional": round(notional, 2),
-                    "unrealized_pnl": round(unrealized_pnl, 2),
-                    "leverage": leverage,
-                    "pnl_percent": round(
-                        (unrealized_pnl / (notional / leverage) * 100) if notional > 0 and leverage > 0 else 0, 2
-                    ),
-                })
-
-        except Exception as e:
-            logger.error("Failed to fetch positions for %s: %s", acct.name, e)
-        finally:
-            if client:
-                await client.close_connection()
+    for positions in results:
+        all_positions.extend(positions)
 
     return all_positions
 

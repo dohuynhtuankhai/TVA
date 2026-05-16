@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -63,6 +64,9 @@ class SymbolMapping(Base):
     """
 
     __tablename__ = "symbol_mappings"
+    __table_args__ = (
+        Index("ix_mapping_symbol_tf", "symbol", "timeframe"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False)  # e.g. BTCUSDT
@@ -117,6 +121,10 @@ class TradeRecord(Base):
     """Ledger of every trade executed by the Bot Engine."""
 
     __tablename__ = "trade_records"
+    __table_args__ = (
+        Index("ix_trade_account_symbol", "account_id", "symbol"),
+        Index("ix_trade_executed_at", "executed_at"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     account_id = Column(Integer, ForeignKey("exchange_accounts.id"), nullable=False)
@@ -140,6 +148,9 @@ class WebhookLog(Base):
     """Log of every webhook received and its execution result."""
 
     __tablename__ = "webhook_logs"
+    __table_args__ = (
+        Index("ix_webhook_received_at", "received_at"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False)

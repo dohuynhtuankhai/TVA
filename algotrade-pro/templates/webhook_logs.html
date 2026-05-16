@@ -124,10 +124,10 @@
                 const acctInfo = `${log.accounts_filled}/${log.accounts_targeted}`;
 
                 html += `<tr>
-                    <td style="font-size: 0.8rem; white-space: nowrap;">${time}</td>
-                    <td><span class="badge-blue">${log.symbol}</span></td>
-                    <td><span class="${actionClass}">${log.action}</span></td>
-                    <td>${log.timeframe}</td>
+                    <td style="font-size: 0.8rem; white-space: nowrap;">${esc(time)}</td>
+                    <td><span class="badge-blue">${esc(log.symbol)}</span></td>
+                    <td><span class="${actionClass}">${esc(log.action)}</span></td>
+                    <td>${esc(log.timeframe)}</td>
                     <td>${price}</td>
                     <td>${statusBadge}</td>
                     <td>${acctInfo} filled</td>

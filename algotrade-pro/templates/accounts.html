@@ -186,8 +186,8 @@
             const mappingRows = mappings.length > 0
                 ? mappings.map(m => `
                     <tr>
-                        <td><span class="badge-blue">${m.symbol}</span></td>
-                        <td>${m.timeframe}</td>
+                        <td><span class="badge-blue">${esc(m.symbol)}</span></td>
+                        <td>${esc(m.timeframe)}</td>
                         <td><button onclick="deleteMapping(${m.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Remove</button></td>
                     </tr>`).join('')
                 : '<tr><td colspan="3" style="text-align: center; color: #6b7280; font-size: 0.8rem;">No mappings</td></tr>';
@@ -196,8 +196,8 @@
                 <div class="card" style="padding: 20px; margin-bottom: 16px;">
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
                         <div>
-                            <h4 style="font-size: 1.125rem; font-weight: 600;">${acct.name}</h4>
-                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Key: ${acct.api_key_preview}</p>
+                            <h4 style="font-size: 1.125rem; font-weight: 600;">${esc(acct.name)}</h4>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Key: ${esc(acct.api_key_preview)}</p>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             ${statusBadge} ${activeBadge}

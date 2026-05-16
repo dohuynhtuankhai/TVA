@@ -5,11 +5,14 @@ import logging
 import re
 import time
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+import hmac
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot_engine import bot_engine
+from config import settings
 from database import get_db, async_session
 from models import WebhookLog
 from schemas import WebhookPayload
@@ -153,12 +156,19 @@ async def _process_and_broadcast(payload: WebhookPayload):
 
 
 @router.post("/webhook", status_code=200)
-async def receive_webhook(payload: WebhookPayload, bg: BackgroundTasks):
+async def receive_webhook(payload: WebhookPayload, request: Request, bg: BackgroundTasks):
     """Receive a TradingView JSON webhook.
 
     Returns HTTP 200 immediately and processes the signal in the background
     to meet the <500ms latency requirement.
     """
+    # Validate webhook secret if configured
+    if settings.WEBHOOK_SECRET:
+        incoming_secret = request.headers.get("X-Webhook-Secret", "")
+        if not hmac.compare_digest(incoming_secret, settings.WEBHOOK_SECRET):
+            logger.warning("Webhook rejected — invalid secret from %s", request.client.host)
+            raise HTTPException(status_code=401, detail="Invalid webhook secret")
+
     # Clean the symbol from TradingView format
     payload.symbol = _clean_symbol(payload.symbol)
 

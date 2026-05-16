@@ -1,6 +1,7 @@
 """Authentication routes – login, logout, session check."""
 
 import logging
+import time
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
@@ -13,6 +14,41 @@ logger = logging.getLogger("algotrade.auth")
 
 COOKIE_NAME = "algotrade_session"
 
+# ── Rate limiting ───────────────────────────────────────────────────────────
+# Track failed login attempts per IP
+_login_attempts: dict[str, dict] = {}  # ip → {"count": int, "first_at": float}
+MAX_ATTEMPTS = 5
+LOCKOUT_SECONDS = 300  # 5 minutes
+
+
+def _check_rate_limit(ip: str):
+    """Raise 429 if too many failed attempts from this IP."""
+    record = _login_attempts.get(ip)
+    if not record:
+        return
+    # Reset if lockout window passed
+    if time.time() - record["first_at"] > LOCKOUT_SECONDS:
+        del _login_attempts[ip]
+        return
+    if record["count"] >= MAX_ATTEMPTS:
+        remaining = int(LOCKOUT_SECONDS - (time.time() - record["first_at"]))
+        raise HTTPException(429, f"Too many login attempts. Try again in {remaining}s")
+
+
+def _record_failed_attempt(ip: str):
+    """Record a failed login attempt."""
+    record = _login_attempts.get(ip)
+    now = time.time()
+    if not record or now - record["first_at"] > LOCKOUT_SECONDS:
+        _login_attempts[ip] = {"count": 1, "first_at": now}
+    else:
+        record["count"] += 1
+
+
+def _clear_attempts(ip: str):
+    """Clear attempts on successful login."""
+    _login_attempts.pop(ip, None)
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -20,10 +56,16 @@ class LoginRequest(BaseModel):
 
 
 @router.post("/login")
-async def login(body: LoginRequest, response: Response):
+async def login(body: LoginRequest, request: Request, response: Response):
+    client_ip = request.client.host if request.client else "unknown"
+    _check_rate_limit(client_ip)
+
     if not verify_credentials(body.username, body.password):
-        logger.warning("Failed login attempt for user: %s", body.username)
+        _record_failed_attempt(client_ip)
+        logger.warning("Failed login attempt for user: %s from %s", body.username, client_ip)
         raise HTTPException(401, "Invalid username or password")
+
+    _clear_attempts(client_ip)
 
     session_id = create_session()
     response.set_cookie(

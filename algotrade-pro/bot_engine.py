@@ -190,8 +190,10 @@ class BotEngine:
             )
 
             # ── Calculate quantity ────────────────────────────────────
+            symbol_info = await self._get_symbol_info(client, payload.symbol.upper())
+            tick_size = self._get_tick_size(symbol_info)
             quantity = await self._calculate_quantity(
-                client, payload.symbol.upper(), risk_amount
+                client, payload.symbol.upper(), risk_amount, symbol_info
             )
 
             # ── Place MARKET order ───────────────────────────────────
@@ -227,9 +229,9 @@ class BotEngine:
             if account.stoploss_percent and entry_price > 0:
                 sl_side = SIDE_SELL if side == SIDE_BUY else SIDE_BUY
                 if side == SIDE_BUY:
-                    sl_price = round(entry_price * (1 - account.stoploss_percent / 100), 2)
+                    sl_price = self._round_price(entry_price * (1 - account.stoploss_percent / 100), tick_size)
                 else:
-                    sl_price = round(entry_price * (1 + account.stoploss_percent / 100), 2)
+                    sl_price = self._round_price(entry_price * (1 + account.stoploss_percent / 100), tick_size)
                 try:
                     await client.futures_create_order(
                         symbol=payload.symbol.upper(),
@@ -268,9 +270,9 @@ class BotEngine:
                         }
                         if account.trail_activation_pct and account.trail_activation_pct > 0:
                             if side == SIDE_BUY:
-                                act_price = round(entry_price * (1 + account.trail_activation_pct / 100), 2)
+                                act_price = self._round_price(entry_price * (1 + account.trail_activation_pct / 100), tick_size)
                             else:
-                                act_price = round(entry_price * (1 - account.trail_activation_pct / 100), 2)
+                                act_price = self._round_price(entry_price * (1 - account.trail_activation_pct / 100), tick_size)
                             trail_params["activationPrice"] = str(act_price)
 
                         logger.info("Placing trailing stop with params: %s", trail_params)
@@ -486,8 +488,30 @@ class BotEngine:
 
         return None
 
+    async def _get_symbol_info(self, client: AsyncClient, symbol: str) -> dict:
+        """Fetch and cache symbol info including tick size and step size."""
+        info = await client.futures_exchange_info()
+        for s in info["symbols"]:
+            if s["symbol"] == symbol:
+                return s
+        raise ValueError(f"Symbol {symbol} not found on Binance Futures")
+
+    def _get_tick_size(self, symbol_info: dict) -> float:
+        """Extract tick size (price precision) from symbol filters."""
+        for f in symbol_info["filters"]:
+            if f["filterType"] == "PRICE_FILTER":
+                return float(f["tickSize"])
+        return 0.01  # safe fallback
+
+    def _round_price(self, price: float, tick_size: float) -> float:
+        """Round a price to the nearest valid tick size."""
+        if tick_size <= 0:
+            return round(price, 2)
+        precision = len(str(tick_size).rstrip("0").split(".")[-1]) if "." in str(tick_size) else 0
+        return round(round(price / tick_size) * tick_size, precision)
+
     async def _calculate_quantity(
-        self, client: AsyncClient, symbol: str, risk_amount: float
+        self, client: AsyncClient, symbol: str, risk_amount: float, symbol_info: dict = None
     ) -> float:
         """Convert a USDT risk amount into a valid order quantity for the symbol."""
         # Get current price
@@ -495,15 +519,8 @@ class BotEngine:
         price = float(ticker["price"])
 
         # Get symbol info for lot size / precision
-        info = await client.futures_exchange_info()
-        symbol_info = None
-        for s in info["symbols"]:
-            if s["symbol"] == symbol:
-                symbol_info = s
-                break
-
         if not symbol_info:
-            raise ValueError(f"Symbol {symbol} not found on Binance Futures")
+            symbol_info = await self._get_symbol_info(client, symbol)
 
         # Find step size from LOT_SIZE filter
         step_size = 1.0

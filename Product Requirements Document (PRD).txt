@@ -145,16 +145,30 @@ The global Bot Settings page contains default values for new accounts:
 3.6. Authentication
 1. The dashboard is protected by session-based authentication. All pages and API endpoints (except /api/webhook and /login) require a valid session.
 2. On first visit or expired session, the user is redirected to a login page.
-3. Credentials (username and password) are stored in the .env file on the server.
-4. Password is hashed at runtime using SHA-256 and compared using constant-time comparison to prevent timing attacks.
+3. Credentials (username and password) are stored in the .env file on the server. No default credentials are shipped — users must set their own.
+4. Password is hashed at runtime using bcrypt and compared using constant-time comparison to prevent timing attacks.
 5. On successful login, a secure HTTP-only cookie is set with a cryptographically random session ID.
 6. Sessions expire after 2 weeks from the time of login (configurable via SESSION_MAX_AGE). After expiry, the user must re-enter credentials.
 7. Sessions are cached in-memory for fast validation with no database overhead.
-8. The webhook endpoint (/api/webhook) is exempt from authentication so TradingView can send signals without a login session.
+8. The webhook endpoint (/api/webhook) is exempt from session authentication but supports optional secret-based validation via X-Webhook-Secret header.
 9. A logout button is available in the sidebar. Clicking it destroys the session and redirects to the login page.
+10. Login rate limiting: After 5 failed login attempts from the same IP, the account is locked for 5 minutes to prevent brute-force attacks.
 
 4. Non-Functional Requirements
 * Latency: The time from webhook ingestion to Binance order execution must be under 500ms.
 * Resilience: The Bot Engine must catch and log Binance API errors (e.g., "Insufficient Margin", "Lot Size Error") without crashing the main API Server.
-* Security: API Secrets must be symmetrically encrypted at rest. Dashboard access is protected by session-based authentication with HTTP-only cookies. The application is designed to run locally, ensuring API keys never touch a third-party cloud database in V1.
+* Security:
+  - API Secrets are symmetrically encrypted at rest using Fernet. The ENCRYPTION_KEY must be set in .env and is validated on startup — the app refuses to start without it.
+  - Dashboard access is protected by session-based authentication with HTTP-only cookies and bcrypt password hashing.
+  - Webhook endpoint supports optional X-Webhook-Secret header validation when WEBHOOK_SECRET is configured in .env.
+  - All frontend templates use HTML entity escaping (escapeHtml) on dynamic data to prevent XSS attacks.
+  - Telegram test messages are sent via a server-side endpoint to avoid exposing bot tokens in the browser.
+  - API documentation (/docs, /redoc) is only available when DEBUG=True.
+  - No hardcoded credentials — all secrets, passwords, and keys are sourced exclusively from .env.
+  - Login rate limiting prevents brute-force attacks (5 attempts per IP, 5-minute lockout).
+  - .gitignore prevents accidental commit of .env, database files, and Python cache.
+* Performance:
+  - Binance API calls for dashboard and positions pages are executed in parallel using asyncio.gather() for faster page loads.
+  - Database indexes on frequently queried columns (trade_records.account_id+symbol, trade_records.executed_at, webhook_logs.received_at, symbol_mappings.symbol+timeframe).
+  - Stoploss and trailing stop prices are rounded to the symbol's tick size from Binance exchange info to prevent order rejection.
 * Testnet Support: The application supports Binance Testnet for safe testing with fake money, togglable from the dashboard without code changes.

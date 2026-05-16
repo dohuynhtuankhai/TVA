@@ -188,23 +188,16 @@
         const token = document.getElementById('telegramBotToken').value.trim();
         const chatId = document.getElementById('telegramChatId').value.trim();
         if (!token || !chatId) {
-            showToast('Enter bot token and chat ID first', 'error');
+            showToast('Save settings first, then test', 'error');
             return;
         }
         try {
-            const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    chat_id: chatId,
-                    text: '✅ AlgoTrade Pro — Telegram connected!',
-                }),
-            });
+            const res = await fetch('/api/settings/test-telegram', { method: 'POST' });
+            const data = await res.json();
             if (res.ok) {
                 showToast('Test message sent! Check Telegram');
             } else {
-                const err = await res.json();
-                showToast('Failed: ' + (err.description || 'Unknown error'), 'error');
+                showToast('Failed: ' + (data.detail || 'Unknown error'), 'error');
             }
         } catch (e) {
             showToast('Error: ' + e.message, 'error');
