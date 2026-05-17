@@ -69,8 +69,6 @@ class BotEngine:
 
         Returns a list of result dicts (one per target account).
         """
-        results: list[dict] = []
-
         async with async_session() as db:
             # 1. Load global settings
             bot_settings = await self._get_bot_settings(db)
@@ -86,20 +84,21 @@ class BotEngine:
                 )
                 return [{"status": "NO_MAPPING", "symbol": payload.symbol}]
 
-            # 3. Execute against each mapped account
-            tasks = [
-                self._execute_for_account(db, acct, payload, bot_settings)
-                for acct in accounts
-            ]
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+        # 3. Execute against each mapped account. Each task owns its DB session;
+        # AsyncSession instances are not safe to share across concurrent tasks.
+        tasks = [
+            self._execute_for_account(acct, payload, bot_settings)
+            for acct in accounts
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Convert exceptions to error dicts
-            final = []
-            for r in results:
-                if isinstance(r, Exception):
-                    final.append({"status": "ERROR", "error": str(r)})
-                else:
-                    final.append(r)
+        # Convert exceptions to error dicts
+        final = []
+        for r in results:
+            if isinstance(r, Exception):
+                final.append({"status": "ERROR", "error": str(r)})
+            else:
+                final.append(r)
 
         return final
 
@@ -133,14 +132,29 @@ class BotEngine:
 
     async def _execute_for_account(
         self,
-        db: AsyncSession,
         account: ExchangeAccount,
         payload: WebhookPayload,
         bot_settings: BotSettings,
     ) -> dict:
         """Run the full trade pipeline for a single account."""
         client = None
+        async with async_session() as db:
+            return await self._execute_for_account_with_session(
+                db, account, payload, bot_settings, client
+            )
+
+    async def _execute_for_account_with_session(
+        self,
+        db: AsyncSession,
+        account: ExchangeAccount,
+        payload: WebhookPayload,
+        bot_settings: BotSettings,
+        client: AsyncClient | None,
+    ) -> dict:
+        """Run the trade pipeline using a task-owned DB session."""
         try:
+            warnings: list[str] = []
+
             # ── Risk gate ────────────────────────────────────────────
             blocked_reason = await self._check_risk_limits(
                 db, account, bot_settings
@@ -244,6 +258,7 @@ class BotEngine:
                     logger.info("Stoploss placed at %s for %s", sl_price, payload.symbol)
                 except Exception as e:
                     logger.warning("Stoploss order failed: %s", str(e))
+                    warnings.append(f"Stoploss order failed: {str(e)}")
 
             # ── Place trailing stop if configured ────────────────────
             logger.info(
@@ -253,10 +268,12 @@ class BotEngine:
             is_testnet = await get_testnet_mode()
             if account.trail_callback_pct and account.trail_callback_pct > 0 and entry_price > 0:
                 if is_testnet:
-                    logger.warning(
-                        "Trailing stop SKIPPED — Binance Testnet does not support "
-                        "TRAILING_STOP_MARKET orders. This will work on live trading."
+                    warning = (
+                        "Trailing stop skipped: Binance Testnet does not support "
+                        "TRAILING_STOP_MARKET orders"
                     )
+                    logger.warning("%s. This will work on live trading.", warning)
+                    warnings.append(warning)
                 else:
                     trail_side = SIDE_SELL if side == SIDE_BUY else SIDE_BUY
                     try:
@@ -287,6 +304,7 @@ class BotEngine:
                         )
                     except Exception as e:
                         logger.error("Trailing stop order FAILED: %s", str(e), exc_info=True)
+                        warnings.append(f"Trailing stop order failed: {str(e)}")
             else:
                 logger.info("Trailing stop skipped (not configured or entry_price=0)")
 
@@ -308,7 +326,7 @@ class BotEngine:
                 side, payload.symbol, action, quantity, entry_price, account.name,
             )
 
-            return {
+            result = {
                 "status": "FILLED",
                 "account": account.name,
                 "symbol": payload.symbol,
@@ -317,6 +335,9 @@ class BotEngine:
                 "entry_price": entry_price,
                 "usdt_value": usdt_value,
             }
+            if warnings:
+                result["warnings"] = warnings
+            return result
 
         except BinanceAPIException as e:
             error_msg = f"Binance API error: {e.message} (code {e.code})"

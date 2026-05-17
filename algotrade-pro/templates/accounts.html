@@ -136,8 +136,13 @@
 
     async function loadAccounts() {
         const res = await fetch('/api/accounts/');
+        if (!res.ok) {
+            showToast('Failed to load accounts', 'error');
+            return;
+        }
         const accounts = await res.json();
         const container = document.getElementById('accountsList');
+        Object.keys(_accountCache).forEach(id => delete _accountCache[id]);
 
         if (accounts.length === 0) {
             container.innerHTML = `
@@ -162,7 +167,12 @@
         for (const acct of accounts) {
             _accountCache[acct.id] = acct;
             const mapRes = await fetch(`/api/accounts/${acct.id}/mappings`);
-            const mappings = await mapRes.json();
+            let mappings = [];
+            if (!mapRes.ok) {
+                showToast(`Failed to load mappings for ${acct.name}`, 'error');
+            } else {
+                mappings = await mapRes.json();
+            }
 
             const statusBadge = acct.futures_enabled
                 ? '<span class="badge-green">Trading Enabled</span>'
@@ -396,24 +406,39 @@
 
     async function deleteAccount(id) {
         if (!confirm('Delete this account and all its mappings?')) return;
-        await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
-        showToast('Account deleted');
-        loadAccounts();
+        const res = await fetch(`/api/accounts/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast('Account deleted');
+            loadAccounts();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to delete account', 'error');
+        }
     }
 
     async function deleteMapping(id) {
-        await fetch(`/api/accounts/mappings/${id}`, { method: 'DELETE' });
-        showToast('Mapping removed');
-        loadAccounts();
+        const res = await fetch(`/api/accounts/mappings/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast('Mapping removed');
+            loadAccounts();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to remove mapping', 'error');
+        }
     }
 
     async function toggleActive(id, active) {
-        await fetch(`/api/accounts/${id}`, {
+        const res = await fetch(`/api/accounts/${id}`, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ is_active: active }),
         });
-        loadAccounts();
+        if (res.ok) {
+            loadAccounts();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            showToast(err.detail || 'Failed to update account', 'error');
+        }
     }
 
     loadAccounts();

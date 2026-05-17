@@ -21,13 +21,13 @@ class AccountCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     api_key: str = Field(..., min_length=10)
     api_secret: str = Field(..., min_length=10)
-    trading_size_type: Optional[str] = None
-    trading_size_value: Optional[float] = None
-    leverage: Optional[int] = None
-    stoploss_percent: Optional[float] = None
-    trail_activation_pct: Optional[float] = None
-    trail_callback_pct: Optional[float] = None
-    trade_mode: Optional[str] = None  # "single" or "multi"
+    trading_size_type: Optional[str] = Field(None, pattern="^(percent|fixed)$")
+    trading_size_value: Optional[float] = Field(None, gt=0)
+    leverage: Optional[int] = Field(None, ge=1, le=125)
+    stoploss_percent: Optional[float] = Field(None, ge=0, le=100)
+    trail_activation_pct: Optional[float] = Field(None, ge=0, le=50)
+    trail_callback_pct: Optional[float] = Field(None, ge=0.1, le=10)
+    trade_mode: Optional[str] = Field(None, pattern="^(single|multi)$")
 
 
 class AccountUpdate(BaseModel):
@@ -67,9 +67,9 @@ class AccountResponse(BaseModel):
 # ── Symbol Mapping ───────────────────────────────────────────────────────────
 
 class SymbolMappingCreate(BaseModel):
-    symbol: str
-    timeframe: str
-    account_id: int
+    symbol: str = Field(..., min_length=3, max_length=20, pattern=r"^[A-Za-z0-9:.]+$")
+    timeframe: str = Field(..., min_length=1, max_length=10)
+    account_id: int = Field(..., ge=1)
 
 
 class SymbolMappingResponse(BaseModel):

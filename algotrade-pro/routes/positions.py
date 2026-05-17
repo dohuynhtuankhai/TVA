@@ -131,9 +131,18 @@ async def force_close_position(body: ForceCloseRequest, db: AsyncSession = Depen
             )
 
             entry_price = float(p.get("entryPrice", 0))
+            close_price = float(order.get("avgPrice", 0) or 0)
+            if close_price == 0 and order.get("fills"):
+                fills = order["fills"]
+                total_qty = sum(float(f["qty"]) for f in fills)
+                if total_qty > 0:
+                    close_price = sum(float(f["price"]) * float(f["qty"]) for f in fills) / total_qty
+            if close_price == 0:
+                close_price = float(p.get("markPrice", 0) or entry_price)
+
             realized_pnl = float(p.get("unRealizedProfit", 0))
             leverage = int(p.get("leverage", 1))
-            usdt_value = entry_price * quantity
+            usdt_value = close_price * quantity
 
             # Record to trade ledger
             record = TradeRecord(
@@ -142,7 +151,7 @@ async def force_close_position(body: ForceCloseRequest, db: AsyncSession = Depen
                 timeframe="manual",
                 action="EXIT",
                 side=close_side,
-                entry_price=entry_price,
+                entry_price=close_price,
                 quantity=quantity,
                 usdt_value=round(usdt_value, 2),
                 realized_pnl=round(realized_pnl, 2),
@@ -158,6 +167,7 @@ async def force_close_position(body: ForceCloseRequest, db: AsyncSession = Depen
                 "side": "LONG" if amt > 0 else "SHORT",
                 "quantity": quantity,
                 "entry_price": entry_price,
+                "close_price": close_price,
                 "realized_pnl": round(realized_pnl, 2),
             }
             closed.append(trade_result)
@@ -165,7 +175,7 @@ async def force_close_position(body: ForceCloseRequest, db: AsyncSession = Depen
             logger.info(
                 "Force-closed %s %s (%.4f) @ %s on account %s → PnL: %.2f",
                 "LONG" if amt > 0 else "SHORT", body.symbol, quantity,
-                entry_price, acct.name, realized_pnl,
+                close_price, acct.name, realized_pnl,
             )
 
             # Push to dashboard via WebSocket

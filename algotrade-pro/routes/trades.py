@@ -1,15 +1,16 @@
 """Trade history endpoints."""
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot_engine import create_binance_client
-from database import get_db
+from database import async_session, get_db
 from encryption import decrypt_secret
 from models import ExchangeAccount, TradeRecord
 
@@ -52,8 +53,16 @@ async def list_trades(
     if status:
         query = query.where(TradeRecord.status == status.upper())
     if date_from:
+        try:
+            datetime.strptime(date_from, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(400, "date_from must be YYYY-MM-DD format")
         query = query.where(TradeRecord.executed_at >= date_from)
     if date_to:
+        try:
+            datetime.strptime(date_to, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(400, "date_to must be YYYY-MM-DD format")
         query = query.where(TradeRecord.executed_at <= date_to + "T23:59:59")
 
     query = query.limit(limit).offset(offset)
@@ -221,23 +230,31 @@ async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int
 async def sync_all_trades(db: AsyncSession = Depends(get_db)):
     """Pull trade history from Binance for all active accounts."""
     result = await db.execute(
-        select(ExchangeAccount).where(
+        select(ExchangeAccount.id).where(
             ExchangeAccount.is_active == True,  # noqa: E712
             ExchangeAccount.futures_enabled == True,
         )
     )
-    accounts = result.scalars().all()
+    account_ids = result.scalars().all()
 
-    total_imported = 0
-    results = []
+    # Sync accounts in parallel. Each worker uses its own DB session because
+    # AsyncSession cannot be shared safely across concurrent tasks.
+    async def _sync_one(account_id: int):
+        async with async_session() as worker_db:
+            acct_result = await worker_db.execute(
+                select(ExchangeAccount).where(ExchangeAccount.id == account_id)
+            )
+            acct = acct_result.scalar_one_or_none()
+            if not acct:
+                return {"account": f"#{account_id}", "imported": 0}
+            count = await sync_account_trades(acct, worker_db)
+        return {"account": acct.name, "imported": count}
 
-    for acct in accounts:
-        count = await sync_account_trades(acct, db)
-        total_imported += count
-        results.append({"account": acct.name, "imported": count})
+    results = await asyncio.gather(*[_sync_one(account_id) for account_id in account_ids])
+    total_imported = sum(r["imported"] for r in results)
 
     return {
         "status": "ok",
         "total_imported": total_imported,
-        "accounts": results,
+        "accounts": list(results),
     }

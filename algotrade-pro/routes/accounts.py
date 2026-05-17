@@ -257,6 +257,12 @@ async def create_mapping(
 ):
     symbol = body.symbol.strip().upper()
 
+    account_result = await db.execute(
+        select(ExchangeAccount).where(ExchangeAccount.id == body.account_id)
+    )
+    if not account_result.scalar_one_or_none():
+        raise HTTPException(404, "Account not found")
+
     # Validate symbol exists on Binance Futures
     try:
         import aiohttp
@@ -281,6 +287,16 @@ async def create_mapping(
 
     # Normalize timeframe: 5m → 5, 1h → 60, etc.
     normalized_tf = normalize_timeframe(body.timeframe)
+
+    duplicate_result = await db.execute(
+        select(SymbolMapping).where(
+            SymbolMapping.account_id == body.account_id,
+            SymbolMapping.symbol == symbol,
+            SymbolMapping.timeframe == normalized_tf,
+        )
+    )
+    if duplicate_result.scalar_one_or_none():
+        raise HTTPException(409, "Mapping already exists for this account")
 
     mapping = SymbolMapping(
         symbol=symbol,

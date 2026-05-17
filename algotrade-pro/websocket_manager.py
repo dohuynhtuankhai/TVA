@@ -14,12 +14,13 @@ class ConnectionManager:
         self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
+        # Note: caller must accept() before calling this
         self.active_connections.append(websocket)
         logger.info("WS client connected (%d total)", len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
         logger.info("WS client disconnected (%d remaining)", len(self.active_connections))
 
     async def broadcast(self, event: str, data: dict):
@@ -32,7 +33,8 @@ class ConnectionManager:
             except Exception:
                 disconnected.append(connection)
         for conn in disconnected:
-            self.active_connections.remove(conn)
+            if conn in self.active_connections:
+                self.active_connections.remove(conn)
 
     async def broadcast_trade(self, trade_data: dict):
         await self.broadcast("trade_executed", trade_data)

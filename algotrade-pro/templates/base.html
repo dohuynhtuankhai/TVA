@@ -122,6 +122,7 @@
     // ── WebSocket ───────────────────────────────────────────────────
     let ws;
     let wsReconnectInterval;
+    let wsHeartbeatInterval;
 
     function connectWS() {
         const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -130,9 +131,10 @@
         ws.onopen = () => {
             document.getElementById('wsStatus').className = 'ws-dot connected';
             document.getElementById('wsLabel').textContent = 'Live';
-            clearInterval(wsReconnectInterval);
+            clearTimeout(wsReconnectInterval);
+            clearInterval(wsHeartbeatInterval);
             // Heartbeat
-            setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 30000);
+            wsHeartbeatInterval = setInterval(() => { if (ws.readyState === 1) ws.send('ping'); }, 30000);
         };
 
         ws.onmessage = (event) => {
@@ -141,8 +143,15 @@
             handleWSEvent(msg.event, msg.data);
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
+            clearInterval(wsHeartbeatInterval);
             document.getElementById('wsStatus').className = 'ws-dot disconnected';
+            // 4001 = auth rejected — redirect to login instead of retrying
+            if (event.code === 4001) {
+                document.getElementById('wsLabel').textContent = 'Session expired';
+                window.location.href = '/login';
+                return;
+            }
             document.getElementById('wsLabel').textContent = 'Disconnected';
             wsReconnectInterval = setTimeout(connectWS, 3000);
         };

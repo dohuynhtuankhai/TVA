@@ -14,6 +14,7 @@ from schemas import BotSettingsResponse, BotSettingsUpdate
 logger = logging.getLogger("algotrade.settings")
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
+MASKED_TOKEN = "••••••••"
 
 
 async def _get_or_create(db: AsyncSession) -> BotSettings:
@@ -27,9 +28,32 @@ async def _get_or_create(db: AsyncSession) -> BotSettings:
     return settings
 
 
+def _to_response(settings: BotSettings) -> dict:
+    """Return settings without exposing saved Telegram bot tokens."""
+    return {
+        "bot_active": settings.bot_active,
+        "testnet_mode": settings.testnet_mode,
+        "default_trading_size_type": settings.default_trading_size_type,
+        "risk_per_trade": settings.risk_per_trade,
+        "leverage_override": settings.leverage_override,
+        "default_stoploss_percent": settings.default_stoploss_percent,
+        "default_trail_activation_pct": settings.default_trail_activation_pct,
+        "default_trail_callback_pct": settings.default_trail_callback_pct,
+        "default_trade_mode": settings.default_trade_mode,
+        "daily_loss_limit": settings.daily_loss_limit,
+        "max_drawdown": settings.max_drawdown,
+        "positions_refresh_interval": settings.positions_refresh_interval,
+        "telegram_bot_token": MASKED_TOKEN if settings.telegram_bot_token else None,
+        "telegram_chat_id": settings.telegram_chat_id,
+        "telegram_enabled": settings.telegram_enabled,
+        "updated_at": settings.updated_at,
+    }
+
+
 @router.get("/", response_model=BotSettingsResponse)
 async def get_settings(db: AsyncSession = Depends(get_db)):
-    return await _get_or_create(db)
+    settings = await _get_or_create(db)
+    return _to_response(settings)
 
 
 @router.put("/", response_model=BotSettingsResponse)
@@ -62,7 +86,7 @@ async def update_settings(
         settings.max_drawdown = body.max_drawdown
     if body.positions_refresh_interval is not None:
         settings.positions_refresh_interval = body.positions_refresh_interval
-    if body.telegram_bot_token is not None:
+    if body.telegram_bot_token is not None and body.telegram_bot_token != MASKED_TOKEN:
         settings.telegram_bot_token = body.telegram_bot_token
     if body.telegram_chat_id is not None:
         settings.telegram_chat_id = body.telegram_chat_id
@@ -71,7 +95,7 @@ async def update_settings(
 
     await db.commit()
     await db.refresh(settings)
-    return settings
+    return _to_response(settings)
 
 
 @router.post("/test-telegram")
