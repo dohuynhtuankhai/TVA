@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 
 
 class ExchangeAccount(Base):
-    """A Binance Futures sub-account with encrypted credentials."""
+    """A Binance exchange account with encrypted credentials."""
 
     __tablename__ = "exchange_accounts"
 
@@ -31,6 +31,7 @@ class ExchangeAccount(Base):
     api_secret_encrypted = Column(Text, nullable=False)  # Fernet ciphertext
     is_active = Column(Boolean, default=True)
     futures_enabled = Column(Boolean, default=False)
+    market_type = Column(String(10), default="futures")  # "futures" or "spot"
 
     # ── Per-account trading settings ─────────────────────────────────
     trading_size_type = Column(String(10), default="percent")  # "percent" or "fixed"
@@ -72,6 +73,7 @@ class SymbolMapping(Base):
     symbol = Column(String(20), nullable=False)  # e.g. BTCUSDT
     timeframe = Column(String(10), nullable=False)  # e.g. 5m, 15m, 1h
     account_id = Column(Integer, ForeignKey("exchange_accounts.id"), nullable=False)
+    market_type = Column(String(10), default="futures")  # denormalized for clear routing/UI
 
     account = relationship("ExchangeAccount", back_populates="symbol_mappings")
 
@@ -130,7 +132,7 @@ class TradeRecord(Base):
     account_id = Column(Integer, ForeignKey("exchange_accounts.id"), nullable=False)
     symbol = Column(String(20), nullable=False)
     timeframe = Column(String(10), nullable=False)
-    action = Column(String(10), nullable=False)  # LONG, SHORT, EXIT
+    action = Column(String(10), nullable=False)  # BUY, SELL, EXIT, LONG, SHORT
     side = Column(String(10), nullable=False)  # BUY, SELL
     entry_price = Column(Float, nullable=True)
     quantity = Column(Float, nullable=True)
@@ -139,6 +141,7 @@ class TradeRecord(Base):
     leverage = Column(Integer, nullable=True)
     status = Column(String(20), default="FILLED")  # FILLED, REJECTED, ERROR
     error_message = Column(Text, nullable=True)
+    market_type = Column(String(10), default="futures")
     executed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     account = relationship("ExchangeAccount", back_populates="trades")
@@ -155,7 +158,7 @@ class WebhookLog(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False)
     timeframe = Column(String(10), nullable=False)
-    action = Column(String(10), nullable=False)  # LONG, SHORT, EXIT
+    action = Column(String(10), nullable=False)  # BUY, SELL, EXIT, LONG, SHORT
     price = Column(Float, nullable=True)
     status = Column(String(20), nullable=False)  # SUCCESS, PARTIAL, FAILED, NO_MAPPING
     accounts_targeted = Column(Integer, default=0)
@@ -163,6 +166,7 @@ class WebhookLog(Base):
     accounts_errored = Column(Integer, default=0)
     details = Column(Text, nullable=True)  # JSON string of results
     execution_ms = Column(Float, nullable=True)
+    market_type = Column(String(10), nullable=True)
     received_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
@@ -170,6 +174,9 @@ class DailyPnl(Base):
     """Tracks daily profit/loss per account for risk limit checks."""
 
     __tablename__ = "daily_pnl"
+    __table_args__ = (
+        Index("ix_daily_pnl_account_date", "account_id", "date"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     account_id = Column(Integer, ForeignKey("exchange_accounts.id"), nullable=False)

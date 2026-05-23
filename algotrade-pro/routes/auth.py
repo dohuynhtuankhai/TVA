@@ -50,6 +50,14 @@ def _clear_attempts(ip: str):
     _login_attempts.pop(ip, None)
 
 
+def _prune_stale_attempts():
+    """Remove expired entries to prevent unbounded memory growth."""
+    now = time.time()
+    stale = [ip for ip, r in _login_attempts.items() if now - r["first_at"] > LOCKOUT_SECONDS]
+    for ip in stale:
+        del _login_attempts[ip]
+
+
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -58,6 +66,7 @@ class LoginRequest(BaseModel):
 @router.post("/login")
 async def login(body: LoginRequest, request: Request, response: Response):
     client_ip = request.client.host if request.client else "unknown"
+    _prune_stale_attempts()  # Prevent unbounded memory growth
     _check_rate_limit(client_ip)
 
     if not verify_credentials(body.username, body.password):
@@ -74,7 +83,7 @@ async def login(body: LoginRequest, request: Request, response: Response):
         max_age=settings.SESSION_MAX_AGE,
         httponly=True,
         samesite="lax",
-        secure=False,  # Set True if using HTTPS
+        secure=not settings.DEBUG,  # HTTPS-only in production
     )
     logger.info("User '%s' logged in", body.username)
     return {"status": "ok"}

@@ -1,174 +1,124 @@
 Product Requirements Document (PRD)
-Product Name: AlgoTrade Pro Engine (V1)
-Target User: Algorithmic traders managing multiple Binance Futures sub-accounts using TradingView strategies.
+Product Name: AlgoTrade Pro Engine - Futures + Spot Edition (V1)
+Target User: Algorithmic traders managing multiple Binance Futures and Binance Spot accounts using TradingView strategies.
 
 1. Product Overview
-AlgoTrade Pro is a local, self-hosted SaaS application designed to act as a bridge between TradingView chart algorithms and Binance Futures accounts. It allows users to securely store multiple exchange accounts, configure per-account trading parameters, and utilize a background Bot Engine to autonomously execute trades with precise risk management across all configured accounts simultaneously.
+AlgoTrade Pro is a local, self-hosted SaaS application that bridges TradingView chart algorithms to Binance accounts. The original Binance Futures workflow remains the core behavior. Spot Trading is an additional feature that can run alongside Futures without replacing it.
+
+The product must make Futures and Spot visually distinct across the UI. Users must always know whether an account, mapping, trade, position, holding, webhook result, or setting belongs to Futures or Spot.
 
 2. Core Components
 
 2.1. The Web Dashboard (UI)
 The control center for the trader.
-* Real-Time Data: Displays an aggregated view of walletBalance, availableMargin, and margin utilization ratios across all active accounts via WebSockets.
-* Using Flowbite admin dashboard template as CSS reference for the web - https://github.com/themesberg/flowbite-admin-dashboard - using the latest release
-* Account Management: Users can add, edit, and delete Binance API credentials. The UI visually indicates if an account has valid "Futures Trading" permissions. Each account displays its individual trading settings (trading size, initial size, leverage, stoploss, trade mode) with an "Edit Settings" action.
-  - Initial Size: A computed read-only value shown on each account card. For percent mode, it calculates the actual USDT amount from the account's live balance (e.g., 5% of $1,000 = $50.00). For fixed mode, it simply displays the fixed amount. This gives the trader an at-a-glance view of the real dollar amount per trade.
-* UI Alignment: All table data (headers and cells) across every page is center-aligned for readability.
-* Open Positions: A dedicated tab showing all currently open futures positions across all active accounts, fetched live from Binance. Displays account name, symbol, side (LONG/SHORT), size, entry price, mark price, notional value, leverage, unrealized P&L, and P&L %. Auto-refreshes every 10 seconds and on trade events.
-* Order History: A Binance-style order history page tracking all trades across every account. Features:
-  - Columns: Time, Account, Symbol, Action (LONG/SHORT/EXIT), Side (BUY/SELL), Price, Qty, Value (USDT), Leverage, Realized P&L, Status.
-  - Filters: Account dropdown, symbol search, side filter, action filter, status filter, date range (from/to).
-  - Stats cards: Total trades, filled count, error count, win rate %, total P&L. Stats update based on selected account filter.
-  - Color-coded badges: LONG/BUY = green, SHORT/SELL = red, EXIT = amber, FILLED = green, ERROR = red.
-  - Pagination with 25 rows per page.
-  - Account name shown per row (better than Binance — tracks across all sub-accounts in one view).
-  - Binance Sync: A "Sync from Binance" button pulls all past trade history from Binance Futures API for every active account into the local database. Deduplicates by matching account + symbol + timestamp + quantity. Trades sourced from Binance are tagged with timeframe="binance".
-  - Auto-sync: After every webhook signal is processed and a trade is executed, the system automatically syncs the latest trades from Binance for the involved accounts. This ensures Order History stays up-to-date with any fills, including partial fills or trailing stop exits that Binance executes server-side.
-* Webhook Logs: A dedicated tab showing every webhook signal received from TradingView and its execution result.
-  - Columns: Time, Symbol, Action, Timeframe, Price, Status, Accounts (filled/targeted), Latency, Details.
-  - Status badges: SUCCESS (green), PARTIAL (amber), FAILED (red), NO_MAPPING (amber).
-  - Stats cards: Total signals, success count, failed count, average latency.
-  - Auto-refreshes every 5 seconds. "View" button on each row shows full JSON details of the execution result.
-  - Useful for debugging signal routing, verifying TradingView connectivity, and tracking execution performance.
-* Testnet Mode: A toggleable setting in the Bot Settings page. When enabled, all API calls route to Binance Testnet (fake money). An amber banner is displayed on every page for visibility.
+* Market Identity: The sidebar and page headings show "Futures + Spot". Individual rows/cards show either "Futures" or "Spot" badges.
+* Real-Time Data: Displays aggregated account equity/wallet balance, available capital, and utilization/deployed percentage across all active Futures and Spot accounts.
+  - Futures accounts use walletBalance, availableMargin, and margin utilization from Binance Futures.
+  - Spot accounts use estimated Spot equity, available USDT, and deployed capital.
+* Account Management: Users can add, edit, and delete Binance API credentials. Each account has market_type = "futures" or "spot".
+  - Existing accounts default to Futures for backward compatibility.
+  - Futures accounts keep leverage, LONG/SHORT/EXIT behavior, stoploss, trailing stop, and position management.
+  - Spot accounts are 1x only and use BUY/SELL inventory behavior.
+* Symbol Mappings: Mappings inherit the account market type and validate symbols against the correct Binance market.
+* Positions & Holdings: One page shows Futures open positions and Spot holdings together.
+  - Futures rows show LONG/SHORT, size, entry price, mark price, notional, leverage, unrealized P&L, and P&L %.
+  - Spot rows show HOLD, held/free/locked quantity, last price, estimated value, Spot 1x, and P&L placeholder.
+* Order History: Tracks both Futures and Spot trades with a Market column.
+  - Futures actions: LONG, SHORT, EXIT.
+  - Spot actions: BUY, SELL, EXIT.
+  - Futures rows show leverage. Spot rows show Spot 1x.
+* Webhook Logs: Shows market result as Futures, Spot, or Mixed when one signal routes to both market types.
+* Testnet Mode: One toggle controls Binance Futures Testnet and Binance Spot Testnet. Banner reads "TESTNET MODE - Futures and Spot trading with fake money".
 
-2.2. The TradingView Strategy (Super BE4)
-The signal source. A PineScript v5 strategy stored in /strategies/ within the project.
-* Strategy: "Super BE4 – AlgoTrade Pro" uses Supertrend as core trigger, with optional HMA, Volume RSI, and LuxAlgo Squeeze filters.
-* Signals: On long/short entry and on trade exit (trailing stop or isolated liquidation), the script fires alert() calls containing JSON payloads matching the webhook format.
-* Webhook JSON format: {"symbol":"BTCUSDT","action":"LONG|SHORT|EXIT","timeframe":"5m","price":65000.0}
-* The action field maps directly: LONG = open long, SHORT = open short, EXIT = close position.
-* Two files are maintained: super_be4_original.pine (untouched backup) and super_be4_webhook.pine (production version with JSON alerts).
+2.2. TradingView Strategy
+The TradingView strategy remains the signal source.
+* Webhook JSON format: {"symbol":"BTCUSDT","action":"LONG|SHORT|EXIT|BUY|SELL","timeframe":"5m","price":65000.0}
+* Futures mapping:
+  - LONG, ENTRY, or BUY opens a Futures long.
+  - SHORT opens a Futures short.
+  - EXIT or SELL closes any open Futures position.
+* Spot mapping:
+  - LONG, ENTRY, or BUY places a Spot market BUY.
+  - SHORT, EXIT, or SELL sells the owned Spot base asset.
+* The same symbol/timeframe can route to both Futures and Spot if the user creates mappings on accounts of both market types.
 
-2.3. The API Server (The Bridge)
-The traffic controller that handles data flow.
-* Signal Ingestion: Listens at /api/webhook for incoming TradingView JSON payloads (symbol, timeframe, action, price).
-* Symbol Normalization: TradingView sends tickers in various formats (BINANCE:BTCUSDT, BTCUSDT.P, BTCUSDTPERP). The webhook automatically strips exchange prefixes, .P suffixes, and PERP suffixes to produce a clean symbol (e.g., BTCUSDT).
-* Timeframe Normalization: Users input human-friendly timeframes when adding symbol mappings (5m, 1h, 4h, 1D). The system automatically converts them to TradingView's internal format (5m→5, 1h→60, 4h→240, 1D→D) for matching against incoming webhook signals. Both formats are accepted.
-* Symbol Validation: When adding a symbol mapping, the system validates the symbol against Binance Futures exchange info. If the symbol doesn't exist (e.g. misspelled), the mapping is rejected with a clear error message.
-* Validation & Routing: Rejects malformed signals. Queries the database to determine exactly which Binance account(s) should execute the incoming signal based on the symbol and timeframe.
+2.3. API Server
+* Signal Ingestion: /api/webhook accepts TradingView JSON payloads.
+* Symbol Normalization: Strips exchange prefixes, .P suffixes, and PERP suffixes before routing.
+* Timeframe Normalization: Converts user-friendly mappings like 5m, 1h, 4h, and 1D to TradingView formats.
+* Market-Aware Routing: The API resolves account mappings by symbol, timeframe, and account market type.
+* Market-Aware Validation: Futures mappings validate against Binance Futures exchangeInfo; Spot mappings validate against Binance Spot exchangeInfo.
 
-2.3. The Bot Engine (The Brain)
-The autonomous risk manager and execution layer. This is the core value driver of the product.
-* Risk Evaluation: Before any trade is placed, the Bot must evaluate global risk limits. If bot_active is False, or if the account has hit its daily_loss_limit or max_drawdown, the Bot actively blocks the trade.
-* Trade Mode (Per-Account): Each account operates in one of two modes:
-  - Single trade mode: Only one position per symbol is allowed at a time. When a new ENTRY/LONG/SHORT signal arrives, the Bot first closes any existing open position on that symbol, then opens the new one. This ensures a clean flip between directions.
-  - Multi trade mode: Multiple positions on the same symbol are allowed to stack. New signals add positions without closing existing ones. Useful for scaling-in strategies.
-* Dynamic Position Sizing (Per-Account): The Bot reads trading size settings from the individual account, NOT from global settings. Two modes are supported:
-  - Percentage mode: Queries the account's real-time balance and calculates order size as a percentage (e.g., 5% of $10,000 = $500).
-  - Fixed mode: Uses a fixed USDT amount per trade (e.g., always $200 regardless of balance).
-* Leverage Management (Per-Account): The Bot overrides the exchange's default leverage with the account's own leverage setting prior to placing the order.
-* Stoploss (Per-Account, Optional): If the account has a stoploss_percent configured, the Bot automatically places a STOP_MARKET order after a successful entry. For LONG positions, the stop price is set below entry by the configured percentage. For SHORT positions, it is set above.
-* Trailing Stop (Per-Account, Optional): Mirrors the PineScript trailing stop logic on the exchange side. Two parameters:
-  - trail_activation_pct: The profit percentage at which the trailing stop activates (e.g., 2% = trailing starts when price moves 2% in your favor). If not set, trailing starts immediately.
-  - trail_callback_pct: The callback rate — how far price can pull back from the peak before the stop triggers (e.g., 1% = if price drops 1% from its highest point after activation, position closes).
-  - The Bot places a TRAILING_STOP_MARKET order on Binance after every entry. This runs server-side on Binance, so it works even if the bot or TradingView is offline.
-  - IMPORTANT: Binance Testnet does NOT support TRAILING_STOP_MARKET orders. When testnet mode is active, the trailing stop is gracefully skipped with a log warning. Trailing stops will fully function on live Binance only.
-* Execution: The Bot safely constructs and executes the python-binance Futures order (LONG/SHORT/EXIT).
-* Price Resolution: For every trade (entry or exit), the Bot resolves the execution price using a waterfall: (1) avgPrice from Binance order response, (2) weighted average from order fills array, (3) price field from the webhook payload, (4) mark price from position info. This ensures Trade History always has a populated price.
-* Ledger Recording: Upon a successful exchange fill, the Bot logs the exact entry price, USDT value, and realized PNL into the SQLite database.
+2.4. Bot Engine
+The Bot Engine is market-aware.
+* Shared Risk Evaluation: bot_active, daily_loss_limit, and max_drawdown apply before both Futures and Spot trades.
+* Futures Execution:
+  - Uses Binance Futures account, exchange info, ticker, leverage, position, and order endpoints.
+  - Supports LONG, SHORT, EXIT, single/multi trade mode, leverage, stoploss, and trailing stop.
+  - Single mode closes an existing Futures position on the symbol before a new entry.
+  - Uses reduceOnly=True when force-closing or exiting positions.
+* Spot Execution:
+  - Uses Binance Spot account, exchange info, ticker, and order endpoints.
+  - BUY/ENTRY/LONG places a Spot market BUY using fixed USDT or percent of estimated Spot equity, capped by available USDT.
+  - SELL/EXIT/SHORT sells the available base asset.
+  - Spot is always 1x. Futures leverage settings do not apply.
+  - Single mode blocks duplicate buys while already holding the base asset. Multi mode allows scale-in buys.
+  - Stoploss attempts a Spot STOP_LOSS_LIMIT sell. Trailing stop is Futures-only and ignored for Spot with a warning.
+* Ledger Recording: Trade records include market_type so history can distinguish Futures from Spot.
 
-2.4. Per-Account Trading Settings
-Each exchange account has its own independent trading configuration:
-* trading_size_type: "percent" (% of current balance) or "fixed" (fixed USDT amount).
-* trading_size_value: The numeric value — either a percentage (e.g., 5.0) or a USDT amount (e.g., 200.0).
-* leverage: The leverage multiplier for this account (1x – 125x).
-* stoploss_percent: Optional. If set, a STOP_MARKET order is placed automatically after every entry.
-* trail_activation_pct: Optional. Profit % to activate trailing stop (e.g., 2.0). If empty, trailing starts immediately.
-* trail_callback_pct: Optional. Callback rate % for trailing stop (e.g., 1.0). If both trail fields are empty, no trailing stop is placed.
-* trade_mode: "single" (close existing before new entry) or "multi" (allow stacking positions).
+2.5. Per-Account Trading Settings
+Each account has:
+* market_type: "futures" or "spot".
+* trading_size_type: "percent" or "fixed".
+* trading_size_value: percentage or fixed USDT amount.
+* leverage: Futures leverage 1x-125x. Forced to 1 for Spot.
+* stoploss_percent: Futures STOP_MARKET or Spot STOP_LOSS_LIMIT behavior.
+* trail_activation_pct and trail_callback_pct: Futures trailing-stop controls only.
+* trade_mode: Futures single/multi position behavior; Spot single/multi scale-in behavior.
 
-2.5. Bot Settings as Defaults
-The global Bot Settings page contains default values for new accounts:
-* default_trading_size_type, risk_per_trade (default size value), leverage_override (default leverage), default_stoploss_percent, default_trade_mode.
-* When a new account is created, its trading settings are auto-populated from these defaults.
-* IMPORTANT: Changing the global defaults does NOT retroactively change settings on existing accounts. Each account's settings are independent once created.
-* The Bot Settings page also contains global risk limits (daily_loss_limit, max_drawdown) that apply across all accounts.
+2.6. Bot Settings Defaults
+* Global defaults continue to seed new accounts.
+* default Futures leverage remains configurable.
+* Spot accounts ignore leverage defaults and use 1x.
+* Existing accounts are not retroactively changed when defaults are updated.
 
 3. Functional User Flows
 
-3.1. Adding an Exchange Account
-1. User enters Name, API Key, and API Secret in the UI.
-2. Backend pings Binance to verify the keys and retrieve Futures permissions.
-3. If successful, the Secret is encrypted, saved to SQLite, and the UI immediately updates with a green "Trading Enabled" badge.
-4. The account's trading settings (size, leverage, stoploss, trade mode) are auto-filled from the current Bot Settings defaults.
-5. User can customize these settings per-account via the "Edit Settings" button.
-6. Upon successful account creation, the system automatically syncs the account's existing trade history from Binance in the background. This ensures the Order History is populated immediately without requiring a manual "Sync from Binance" click.
+3.1. Adding an Account
+1. User chooses Market Type: Futures or Spot.
+2. User enters Name, API Key, and API Secret.
+3. Backend verifies credentials against the selected market.
+4. Account is saved encrypted, with a market-specific enabled badge.
+5. Account settings are created from global defaults; Spot leverage is forced to 1.
 
-3.2. Automated Trade Execution
-1. TradingView sends a {"symbol": "BTCUSDT", "action": "ENTRY", "timeframe": "5m"} webhook.
-2. The API Server instantly accepts it (HTTP 200) and passes the data to the Bot Engine.
-3. The Bot Engine checks global risk limits. It finds the account mapped to BTCUSDT 5m.
-4. Trade mode check:
-   - If single mode and an existing position is open on BTCUSDT, the Bot closes it first.
-   - If multi mode, the Bot proceeds without closing anything.
-5. The Bot Engine reads the account's trading settings:
-   - If percent mode with 5% on a $10,000 balance → $500 position.
-   - If fixed mode with $200 → $200 position regardless of balance.
-6. The Bot Engine sets the leverage to the account's configured setting (e.g., 10x).
-7. The Bot Engine places a MARKET BUY order.
-8. If the account has a stoploss configured (e.g., 2%), a STOP_MARKET order is placed at 2% below entry price.
-9. The Bot Engine writes the successful trade to the local database.
-10. The UI's WebSocket immediately pushes the new open position and updated account balance to the user's screen.
+3.2. Adding a Symbol Mapping
+1. User adds a mapping under a specific account.
+2. Backend validates the symbol against that account's market.
+3. Mapping stores the inherited market_type.
 
-3.3. Viewing Open Positions
-1. User navigates to the "Open Positions" tab in the sidebar.
-2. The page fetches live position data from Binance for every active account.
-3. Summary cards show total open positions, total notional value, and aggregate unrealized P&L.
-4. A table displays each position with account name, symbol, side, size, entry/mark price, notional, leverage, unrealized P&L, and P&L %.
-5. Data auto-refreshes every X seconds (configurable in Bot Settings via positions_refresh_interval, default 10s, range 3–300s) and immediately on trade events via WebSocket.
+3.3. Automated Futures Trade
+1. TradingView sends LONG/SHORT/EXIT for a mapped Futures account.
+2. Bot checks risk limits.
+3. Bot applies Futures leverage and single/multi mode.
+4. Bot executes Futures market order and optional Futures stop/trailing orders.
+5. UI updates Futures positions, balances, history, and logs.
 
-3.4. Force Closing a Position
-1. Each row in the Open Positions table has a "Close" button.
-2. Clicking the button opens a confirmation modal showing the position details (account, symbol, side, size, unrealized P&L).
-3. User must explicitly click "Close Position" in the modal to proceed.
-4. The system sends a MARKET order with reduceOnly=True to Binance to close the position immediately.
-5. Upon successful closure, the system writes a TradeRecord to the database with action="EXIT", timeframe="manual", the entry price, quantity, USDT value, realized P&L, and leverage. This ensures force-closed positions appear in Trade History alongside bot-executed trades.
-6. A WebSocket event is broadcast so the dashboard and positions page update in real time.
-7. On success, a toast notification confirms the closure and the positions table refreshes.
-8. On failure (e.g., Binance error), the error is displayed to the user.
+3.4. Automated Spot Trade
+1. TradingView sends BUY/LONG/ENTRY or SELL/SHORT/EXIT for a mapped Spot account.
+2. Bot checks risk limits.
+3. BUY calculates USDT allocation and places Spot market BUY.
+4. SELL sells available base asset.
+5. UI updates Spot holdings, balances, history, and logs.
 
-3.5. Telegram Notifications
-1. The system supports Telegram notifications for all trade events.
-2. Configuration is done in the Bot Settings page: Bot Token (from @BotFather), Chat ID (from @userinfobot), and an enable/disable toggle.
-3. When enabled, the bot sends a formatted message to the configured Telegram chat on:
-   - Order placed (before fill) — shows account, symbol, action, side, qty, leverage. Sent as soon as the MARKET order is submitted to Binance.
-   - Trade filled (LONG/SHORT entry) — shows account, symbol, action, qty, price, value.
-   - Position closed (EXIT) — shows account, symbol, realized P&L.
-   - Trade error — shows account, symbol, error message.
-   - Trade blocked — shows symbol and reason (risk limit, bot inactive).
-   - Force close — shows account, symbol, side, realized P&L.
-4. A "Send Test Message" button in Bot Settings lets the user verify their Telegram configuration before going live.
-5. Notifications are fire-and-forget with a 10-second timeout — they never block or delay trade execution.
-6. If Telegram is not configured or disabled, all notification calls are silently skipped.
-
-3.6. Authentication
-1. The dashboard is protected by session-based authentication. All pages and API endpoints (except /api/webhook and /login) require a valid session.
-2. On first visit or expired session, the user is redirected to a login page.
-3. Credentials (username and password) are stored in the .env file on the server. No default credentials are shipped — users must set their own.
-4. Password is hashed at runtime using bcrypt and compared using constant-time comparison to prevent timing attacks.
-5. On successful login, a secure HTTP-only cookie is set with a cryptographically random session ID.
-6. Sessions expire after 2 weeks from the time of login (configurable via SESSION_MAX_AGE). After expiry, the user must re-enter credentials.
-7. Sessions are cached in-memory for fast validation with no database overhead.
-8. The webhook endpoint (/api/webhook) is exempt from session authentication but supports optional secret-based validation via X-Webhook-Secret header.
-9. A logout button is available in the sidebar. Clicking it destroys the session and redirects to the login page.
-10. Login rate limiting: After 5 failed login attempts from the same IP, the account is locked for 5 minutes to prevent brute-force attacks.
+3.5. Positions & Holdings
+1. User opens Positions & Holdings.
+2. Futures rows can be force-closed with reduce-only Futures market orders.
+3. Spot rows can be sold with Spot market SELL orders.
+4. UI labels and confirmation modals clearly distinguish "Close Futures Position" from "Sell Spot Holding".
 
 4. Non-Functional Requirements
-* Latency: The time from webhook ingestion to Binance order execution must be under 500ms.
-* Resilience: The Bot Engine must catch and log Binance API errors (e.g., "Insufficient Margin", "Lot Size Error") without crashing the main API Server.
-* Security:
-  - API Secrets are symmetrically encrypted at rest using Fernet. The ENCRYPTION_KEY must be set in .env and is validated on startup — the app refuses to start without it.
-  - Dashboard access is protected by session-based authentication with HTTP-only cookies and bcrypt password hashing.
-  - Webhook endpoint supports optional X-Webhook-Secret header validation when WEBHOOK_SECRET is configured in .env.
-  - All frontend templates use HTML entity escaping (escapeHtml) on dynamic data to prevent XSS attacks.
-  - Telegram test messages are sent via a server-side endpoint to avoid exposing bot tokens in the browser.
-  - API documentation (/docs, /redoc) is only available when DEBUG=True.
-  - No hardcoded credentials — all secrets, passwords, and keys are sourced exclusively from .env.
-  - Login rate limiting prevents brute-force attacks (5 attempts per IP, 5-minute lockout).
-  - .gitignore prevents accidental commit of .env, database files, and Python cache.
-* Performance:
-  - Binance API calls for dashboard and positions pages are executed in parallel using asyncio.gather() for faster page loads.
-  - Database indexes on frequently queried columns (trade_records.account_id+symbol, trade_records.executed_at, webhook_logs.received_at, symbol_mappings.symbol+timeframe).
-  - Stoploss and trailing stop prices are rounded to the symbol's tick size from Binance exchange info to prevent order rejection.
-* Testnet Support: The application supports Binance Testnet for safe testing with fake money, togglable from the dashboard without code changes.
+* Latency: Webhook ingestion to exchange submission should remain under 500ms where network conditions allow.
+* Resilience: Binance API failures must be logged and returned without crashing the API server.
+* Security: API secrets encrypted at rest, dashboard protected by sessions, optional webhook secret supported, no hardcoded credentials.
+* Backward Compatibility: Existing accounts and mappings default to Futures after migration.
+* Testnet Support: Futures and Spot testnets are both supported through the same Testnet Mode toggle.

@@ -4,8 +4,11 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
-        <h2 style="font-size: 1.5rem; font-weight: 700;">Exchange Accounts</h2>
-        <p style="color: #9ca3af; font-size: 0.875rem;">Manage your Binance Futures API connections and individual trading settings</p>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="font-size: 1.5rem; font-weight: 700;">Exchange Accounts</h2>
+            <span class="market-pill">Futures + Spot</span>
+        </div>
+        <p style="color: #9ca3af; font-size: 0.875rem;">Manage Binance Futures and Spot API connections with account-level trading settings</p>
     </div>
     <button class="btn-primary" onclick="openAddModal()">+ Add Account</button>
 </div>
@@ -22,6 +25,13 @@
             <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Account Name</label>
                 <input class="input-field" id="accName" placeholder="e.g. Main Trading" required>
+            </div>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Market Type</label>
+                <select class="input-field" id="accMarketType">
+                    <option value="futures">Futures</option>
+                    <option value="spot">Spot</option>
+                </select>
             </div>
             <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">API Key</label>
@@ -62,9 +72,9 @@
             </div>
 
             <div style="margin-bottom: 16px;">
-                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Leverage</label>
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;" id="setLeverageLabel">Leverage</label>
                 <input class="input-field" id="setLeverage" type="number" min="1" max="125" required>
-                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">1x – 125x</p>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;" id="setLeverageHint">Futures leverage: 1x - 125x. Spot accounts are locked to 1x.</p>
             </div>
 
             <div style="margin-bottom: 16px;">
@@ -89,10 +99,10 @@
             <div style="margin-bottom: 20px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Trade Mode</label>
                 <select class="input-field" id="setTradeMode">
-                    <option value="single">Single — close existing before new entry</option>
-                    <option value="multi">Multi — allow multiple positions per pair</option>
+                    <option value="single">Single</option>
+                    <option value="multi">Multi</option>
                 </select>
-                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Single: always 1 position per pair. Multi: stack positions.</p>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;" id="setTradeModeHint">Futures: close existing before new entry. Spot: block duplicate buys while holding.</p>
             </div>
 
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -112,7 +122,7 @@
             <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Symbol</label>
                 <input class="input-field" id="mapSymbol" placeholder="e.g. BTCUSDT" required style="text-transform: uppercase;">
-                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Validated against Binance Futures</p>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;" id="mappingMarketHint">Validated against the account's Binance market</p>
             </div>
             <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Timeframe</label>
@@ -174,9 +184,15 @@
                 mappings = await mapRes.json();
             }
 
+            const marketType = acct.market_type || 'futures';
+            const isSpot = marketType === 'spot';
+            const marketLabel = isSpot ? 'Spot' : 'Futures';
+            const marketBadge = isSpot
+                ? '<span class="market-pill">Spot</span>'
+                : '<span class="badge-blue">Futures</span>';
             const statusBadge = acct.futures_enabled
-                ? '<span class="badge-green">Trading Enabled</span>'
-                : '<span class="badge-red">No Futures</span>';
+                ? `<span class="badge-green">${marketLabel} Trading Enabled</span>`
+                : `<span class="badge-red">No ${marketLabel} Permission</span>`;
             const activeBadge = acct.is_active
                 ? '<span class="badge-green">Active</span>'
                 : '<span class="badge-yellow">Inactive</span>';
@@ -196,6 +212,7 @@
             const slLabel = acct.stoploss_percent ? `${acct.stoploss_percent}%` : 'None';
             const trailLabel = acct.trail_callback_pct ? `${acct.trail_activation_pct || 0}% / ${acct.trail_callback_pct}%` : 'None';
             const modeLabel = acct.trade_mode === 'multi' ? 'Multi' : 'Single';
+            const leverageLabel = isSpot ? 'Spot 1x' : `${acct.leverage}x`;
 
             const mappingRows = mappings.length > 0
                 ? mappings.map(m => `
@@ -211,7 +228,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 16px;">
                         <div>
                             <h4 style="font-size: 1.125rem; font-weight: 600;">${esc(acct.name)}</h4>
-                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Key: ${esc(acct.api_key_preview)}</p>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">${marketBadge} <span style="margin-left: 8px;">Key: ${esc(acct.api_key_preview)}</span></p>
                         </div>
                         <div style="display: flex; gap: 8px; align-items: center;">
                             ${statusBadge} ${activeBadge}
@@ -231,8 +248,8 @@
                             <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px; color: #93c5fd;">${initialSizeLabel}</p>
                         </div>
                         <div>
-                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Leverage</p>
-                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${acct.leverage}x</p>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">${isSpot ? 'Market' : 'Leverage'}</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${leverageLabel}</p>
                         </div>
                         <div>
                             <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Mode</p>
@@ -274,6 +291,7 @@
         document.getElementById('modalTitle').textContent = 'Add Exchange Account';
         document.getElementById('editAccountId').value = '';
         document.getElementById('accName').value = '';
+        document.getElementById('accMarketType').value = 'futures';
         document.getElementById('accKey').value = '';
         document.getElementById('accSecret').value = '';
         document.getElementById('accountModal').style.display = 'flex';
@@ -291,7 +309,19 @@
         document.getElementById('settingsAccountId').value = acct.id;
         document.getElementById('setTradingType').value = acct.trading_size_type;
         document.getElementById('setTradingValue').value = acct.trading_size_value;
-        document.getElementById('setLeverage').value = acct.leverage;
+        const isSpot = (acct.market_type || 'futures') === 'spot';
+        const leverage = document.getElementById('setLeverage');
+        leverage.value = isSpot ? 1 : acct.leverage;
+        leverage.min = 1;
+        leverage.max = isSpot ? 1 : 125;
+        leverage.disabled = isSpot;
+        document.getElementById('setLeverageLabel').textContent = isSpot ? 'Spot Leverage' : 'Futures Leverage';
+        document.getElementById('setLeverageHint').textContent = isSpot
+            ? 'Spot trades are always 1x. Futures leverage is unavailable on Spot accounts.'
+            : 'Applied before Futures orders (1x - 125x).';
+        document.getElementById('setTradeModeHint').textContent = isSpot
+            ? 'Single blocks duplicate buys while holding. Multi allows scale-in buys.'
+            : 'Single closes existing Futures position before new entry. Multi allows stacking.';
         document.getElementById('setStoploss').value = acct.stoploss_percent || '';
         document.getElementById('setTrailActivation').value = acct.trail_activation_pct || '';
         document.getElementById('setTrailCallback').value = acct.trail_callback_pct || '';
@@ -321,6 +351,9 @@
         document.getElementById('mappingAccountId').value = accountId;
         document.getElementById('mapSymbol').value = '';
         document.getElementById('mapTimeframe').value = '';
+        const acct = _accountCache[accountId];
+        const market = (acct && acct.market_type === 'spot') ? 'Spot' : 'Futures';
+        document.getElementById('mappingMarketHint').textContent = `Validated against Binance ${market}`;
         document.getElementById('mappingModal').style.display = 'flex';
     }
 
@@ -335,6 +368,7 @@
             const id = document.getElementById('editAccountId').value;
             const body = {
                 name: document.getElementById('accName').value,
+                market_type: document.getElementById('accMarketType').value,
                 api_key: document.getElementById('accKey').value,
                 api_secret: document.getElementById('accSecret').value,
             };

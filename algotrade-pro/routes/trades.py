@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot_engine import create_binance_client
 from database import async_session, get_db
 from encryption import decrypt_secret
-from models import ExchangeAccount, TradeRecord
+from models import ExchangeAccount, SymbolMapping, TradeRecord
 
 logger = logging.getLogger("algotrade.trades")
 
@@ -83,6 +83,7 @@ async def list_trades(
             "usdt_value": row.TradeRecord.usdt_value,
             "realized_pnl": row.TradeRecord.realized_pnl,
             "leverage": row.TradeRecord.leverage,
+            "market_type": row.TradeRecord.market_type or getattr(row, "market_type", None) or "futures",
             "status": row.TradeRecord.status,
             "error_message": row.TradeRecord.error_message,
             "executed_at": row.TradeRecord.executed_at.isoformat() if row.TradeRecord.executed_at else None,
@@ -157,10 +158,29 @@ async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int
     imported = 0
     try:
         secret = decrypt_secret(account.api_secret_encrypted)
-        client = await create_binance_client(account.api_key, secret)
+        market_type = account.market_type or "futures"
+        client = await create_binance_client(account.api_key, secret, market_type=market_type)
 
-        # Get all futures trades (Binance returns up to 1000 per call)
-        trades = await client.futures_account_trades()
+        if market_type == "futures":
+            trades = await client.futures_account_trades()
+        else:
+            mapping_result = await db.execute(
+                select(TradeRecord.symbol)
+                .where(TradeRecord.account_id == account.id)
+                .distinct()
+            )
+            symbols = set(mapping_result.scalars().all())
+            configured = await db.execute(
+                select(SymbolMapping.symbol).where(SymbolMapping.account_id == account.id)
+            )
+            symbols.update(configured.scalars().all())
+
+            trades = []
+            for symbol in symbols:
+                try:
+                    trades.extend(await client.get_my_trades(symbol=symbol))
+                except Exception as e:
+                    logger.warning("Spot sync skipped %s for '%s': %s", symbol, account.name, e)
 
         for t in trades:
             # Check if we already have this trade (by matching binance trade id via a combo key)
@@ -168,8 +188,8 @@ async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int
             symbol = t["symbol"]
             price = float(t["price"])
             qty = float(t["qty"])
-            realized_pnl = float(t.get("realizedPnl", 0))
-            side = t["side"]  # BUY or SELL
+            realized_pnl = float(t.get("realizedPnl", 0)) if market_type == "futures" else 0.0
+            side = t["side"] if market_type == "futures" else ("BUY" if t.get("isBuyer") else "SELL")
             commission = float(t.get("commission", 0))
 
             # Deduplicate: check if trade with same account + symbol + time + qty exists
@@ -184,13 +204,14 @@ async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int
             if existing.scalar_one_or_none():
                 continue
 
-            # Determine action from side and context
-            is_buyer = t.get("buyer", side == "BUY")
-            action = "LONG" if side == "BUY" else "SHORT"
-
-            # If reduceOnly or realized PnL != 0, it's likely an exit
-            if t.get("reduceOnly", False) or (realized_pnl != 0):
-                action = "EXIT"
+            if market_type == "futures":
+                action = "LONG" if side == "BUY" else "SHORT"
+                if t.get("reduceOnly", False) or realized_pnl != 0:
+                    action = "EXIT"
+                leverage = account.leverage
+            else:
+                action = "BUY" if side == "BUY" else "SELL"
+                leverage = 1
 
             usdt_value = price * qty
 
@@ -204,9 +225,10 @@ async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int
                 quantity=qty,
                 usdt_value=round(usdt_value, 2),
                 realized_pnl=round(realized_pnl, 2),
-                leverage=account.leverage,
+                leverage=leverage,
                 status="FILLED",
                 error_message=None,
+                market_type=market_type,
                 executed_at=trade_time,
             )
             db.add(record)

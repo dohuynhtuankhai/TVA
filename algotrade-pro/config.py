@@ -21,25 +21,29 @@ class Settings(BaseSettings):
     # Generate with: python3 -c "import secrets; print(secrets.token_urlsafe(32))"
     ENCRYPTION_KEY: str = ""
 
-    # ── Binance Testnet ───────────────────────────────────────────────
+    # ── Binance Spot + Futures / Testnet ──────────────────────────────
     TESTNET_MODE: bool = True  # True = fake money, False = real money
-    BINANCE_TESTNET_API_URL: str = "https://testnet.binancefuture.com"
-    BINANCE_TESTNET_WS_URL: str = "wss://stream.binancefuture.com"
-    BINANCE_LIVE_API_URL: str = "https://fapi.binance.com"
-    BINANCE_LIVE_WS_URL: str = "wss://fstream.binance.com"
+    BINANCE_SPOT_TESTNET_API_URL: str = "https://testnet.binance.vision"
+    BINANCE_SPOT_TESTNET_WS_URL: str = "wss://testnet.binance.vision"
+    BINANCE_SPOT_LIVE_API_URL: str = "https://api.binance.com"
+    BINANCE_SPOT_LIVE_WS_URL: str = "wss://stream.binance.com:9443"
+    BINANCE_FUTURES_TESTNET_API_URL: str = "https://testnet.binancefuture.com"
+    BINANCE_FUTURES_TESTNET_WS_URL: str = "wss://stream.binancefuture.com"
+    BINANCE_FUTURES_LIVE_API_URL: str = "https://fapi.binance.com"
+    BINANCE_FUTURES_LIVE_WS_URL: str = "wss://fstream.binance.com"
 
     @property
     def binance_api_url(self) -> str:
-        return self.BINANCE_TESTNET_API_URL if self.TESTNET_MODE else self.BINANCE_LIVE_API_URL
+        return self.BINANCE_FUTURES_TESTNET_API_URL if self.TESTNET_MODE else self.BINANCE_FUTURES_LIVE_API_URL
 
     @property
     def binance_ws_url(self) -> str:
-        return self.BINANCE_TESTNET_WS_URL if self.TESTNET_MODE else self.BINANCE_LIVE_WS_URL
+        return self.BINANCE_FUTURES_TESTNET_WS_URL if self.TESTNET_MODE else self.BINANCE_FUTURES_LIVE_WS_URL
 
     # ── Authentication ──────────────────────────────────────────────
     AUTH_USERNAME: str = ""
     AUTH_PASSWORD: str = ""
-    SESSION_SECRET: str = secrets.token_urlsafe(32)
+    SESSION_SECRET: str = ""  # Loaded from .env; generates random if missing
     SESSION_MAX_AGE: int = 14 * 24 * 3600  # 2 weeks in seconds
 
     # Server
@@ -66,6 +70,11 @@ class Settings(BaseSettings):
             for e in errors:
                 print(f"  FATAL: {e}", file=sys.stderr)
             sys.exit(1)
+
+        # Non-fatal: generate random SESSION_SECRET if not set (sessions won't survive restart)
+        if not self.SESSION_SECRET:
+            self.SESSION_SECRET = secrets.token_urlsafe(32)
+            print("  WARN: SESSION_SECRET not set in .env — generated random (sessions won't survive restart)", file=sys.stderr)
 
 
 settings = Settings()

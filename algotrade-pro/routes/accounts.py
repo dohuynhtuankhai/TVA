@@ -35,6 +35,7 @@ def _to_response(acct: ExchangeAccount) -> AccountResponse:
         api_key_preview="…" + acct.api_key[-4:],
         is_active=acct.is_active,
         futures_enabled=acct.futures_enabled,
+        market_type=acct.market_type or "futures",
         trading_size_type=acct.trading_size_type,
         trading_size_value=acct.trading_size_value,
         leverage=acct.leverage,
@@ -59,39 +60,39 @@ async def _get_defaults(db: AsyncSession) -> BotSettings:
     return settings
 
 
-async def _verify_binance_keys(api_key: str, api_secret: str) -> bool:
-    """Ping Binance to check if Futures trading is enabled.
+async def _verify_binance_keys(api_key: str, api_secret: str, market_type: str = "futures") -> bool:
+    """Ping Binance to check if the requested market is tradable.
 
-    On testnet, the permissions endpoint doesn't exist and many endpoints
-    behave differently. Testnet accounts always have futures enabled,
-    so we just verify the keys are valid by making any authenticated call.
+    On testnet, permissions endpoints are inconsistent, so authenticated
+    account calls are used as the source of truth.
     """
     from bot_engine import get_testnet_mode
 
     client = None
     is_testnet = await get_testnet_mode()
+    market = (market_type or "futures").lower()
 
     try:
-        client = await create_binance_client(api_key, api_secret, testnet=is_testnet)
+        client = await create_binance_client(api_key, api_secret, testnet=is_testnet, market_type=market)
 
         if is_testnet:
-            # Testnet: just check if keys work at all — futures is always on
-            try:
-                await client.futures_account_balance()
-                logger.info("Testnet keys verified via futures_account_balance")
-                return True
-            except Exception:
-                try:
-                    await client.futures_account()
-                    logger.info("Testnet keys verified via futures_account")
-                    return True
-                except Exception:
-                    await client.ping()
-                    logger.info("Testnet keys verified via ping (assuming futures)")
-                    return True
-        else:
+            if market == "spot":
+                await client.get_account()
+                logger.info("Testnet keys verified via Spot account")
+            else:
+                await client.futures_account()
+                logger.info("Testnet keys verified via Futures account")
+            return True
+
+        if market == "spot":
             perms = await client.get_account_api_permissions()
-            return perms.get("enableFutures", False)
+            if perms.get("enableSpotAndMarginTrading", False):
+                return True
+            await client.get_account()
+            return True
+
+        perms = await client.get_account_api_permissions()
+        return perms.get("enableFutures", False)
 
     except BinanceAPIException as e:
         logger.warning("Binance key verification failed: %s", e.message)
@@ -121,18 +122,19 @@ async def create_account(
     # Load defaults from BotSettings
     defaults = await _get_defaults(db)
 
-    # Verify keys against Binance
-    futures_ok = await _verify_binance_keys(body.api_key, body.api_secret)
+    market_type = body.market_type or "futures"
+    trading_enabled = await _verify_binance_keys(body.api_key, body.api_secret, market_type)
 
     acct = ExchangeAccount(
         name=body.name,
         api_key=body.api_key,
         api_secret_encrypted=encrypt_secret(body.api_secret),
-        futures_enabled=futures_ok,
+        futures_enabled=trading_enabled,
+        market_type=market_type,
         # Use provided values or fall back to BotSettings defaults
         trading_size_type=body.trading_size_type or defaults.default_trading_size_type,
         trading_size_value=body.trading_size_value if body.trading_size_value is not None else defaults.risk_per_trade,
-        leverage=body.leverage if body.leverage is not None else defaults.leverage_override,
+        leverage=1 if market_type == "spot" else (body.leverage if body.leverage is not None else defaults.leverage_override),
         stoploss_percent=body.stoploss_percent if body.stoploss_percent is not None else defaults.default_stoploss_percent,
         trail_activation_pct=body.trail_activation_pct if body.trail_activation_pct is not None else defaults.default_trail_activation_pct,
         trail_callback_pct=body.trail_callback_pct if body.trail_callback_pct is not None else defaults.default_trail_callback_pct,
@@ -143,14 +145,14 @@ async def create_account(
     await db.refresh(acct)
 
     logger.info(
-        "Account '%s' created (futures=%s, size=%s %s, lev=%sx, sl=%s%%)",
-        acct.name, acct.futures_enabled,
+        "Account '%s' created (market=%s, enabled=%s, size=%s %s, lev=%sx, sl=%s%%)",
+        acct.name, acct.market_type, acct.futures_enabled,
         acct.trading_size_value, acct.trading_size_type,
         acct.leverage, acct.stoploss_percent,
     )
 
     # Auto-sync trade history from Binance in background
-    if futures_ok:
+    if trading_enabled:
         bg.add_task(_auto_sync_account, acct.id)
 
     await ws_manager.broadcast("account_added", {"account_id": acct.id, "name": acct.name})
@@ -206,14 +208,18 @@ async def update_account(
         acct.api_secret_encrypted = encrypt_secret(body.api_secret)
         secret = body.api_secret
         key = body.api_key or acct.api_key
-        acct.futures_enabled = await _verify_binance_keys(key, secret)
+        acct.futures_enabled = await _verify_binance_keys(key, secret, acct.market_type or "futures")
     if body.is_active is not None:
         acct.is_active = body.is_active
+    if body.market_type is not None:
+        acct.market_type = body.market_type
+        if body.market_type == "spot":
+            acct.leverage = 1
     if body.trading_size_type is not None:
         acct.trading_size_type = body.trading_size_type
     if body.trading_size_value is not None:
         acct.trading_size_value = body.trading_size_value
-    if body.leverage is not None:
+    if body.leverage is not None and (acct.market_type or "futures") != "spot":
         acct.leverage = body.leverage
     if body.stoploss_percent is not None:
         acct.stoploss_percent = body.stoploss_percent
@@ -260,24 +266,33 @@ async def create_mapping(
     account_result = await db.execute(
         select(ExchangeAccount).where(ExchangeAccount.id == body.account_id)
     )
-    if not account_result.scalar_one_or_none():
+    account = account_result.scalar_one_or_none()
+    if not account:
         raise HTTPException(404, "Account not found")
+    market_type = account.market_type or "futures"
 
-    # Validate symbol exists on Binance Futures
+    # Validate symbol exists on the account's Binance market
     try:
         import aiohttp
         from bot_engine import get_testnet_mode
         is_testnet = await get_testnet_mode()
-        base_url = "https://testnet.binancefuture.com" if is_testnet else "https://fapi.binance.com"
+        if market_type == "spot":
+            base_url = "https://testnet.binance.vision" if is_testnet else "https://api.binance.com"
+            exchange_path = "/api/v3/exchangeInfo"
+            market_label = "Binance Spot"
+        else:
+            base_url = "https://testnet.binancefuture.com" if is_testnet else "https://fapi.binance.com"
+            exchange_path = "/fapi/v1/exchangeInfo"
+            market_label = "Binance Futures"
         async with aiohttp.ClientSession() as session:
-            async with session.get(f"{base_url}/fapi/v1/exchangeInfo", timeout=aiohttp.ClientTimeout(total=10)) as resp:
+            async with session.get(f"{base_url}{exchange_path}", timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 if resp.status == 200:
                     info = await resp.json()
                     valid_symbols = {s["symbol"] for s in info.get("symbols", [])}
                     if symbol not in valid_symbols:
                         raise HTTPException(
                             400,
-                            f"Symbol '{symbol}' not found on Binance Futures. "
+                            f"Symbol '{symbol}' not found on {market_label}. "
                             f"Check spelling (e.g. BTCUSDT, ETHUSDT)."
                         )
     except HTTPException:
@@ -293,6 +308,7 @@ async def create_mapping(
             SymbolMapping.account_id == body.account_id,
             SymbolMapping.symbol == symbol,
             SymbolMapping.timeframe == normalized_tf,
+            SymbolMapping.market_type == market_type,
         )
     )
     if duplicate_result.scalar_one_or_none():
@@ -302,6 +318,7 @@ async def create_mapping(
         symbol=symbol,
         timeframe=normalized_tf,
         account_id=body.account_id,
+        market_type=market_type,
     )
     db.add(mapping)
     await db.commit()

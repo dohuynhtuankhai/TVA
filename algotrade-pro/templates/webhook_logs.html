@@ -4,8 +4,11 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
-        <h2 style="font-size: 1.5rem; font-weight: 700;">Webhook Logs</h2>
-        <p style="color: #9ca3af; font-size: 0.875rem;">Every signal received from TradingView and its execution result</p>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="font-size: 1.5rem; font-weight: 700;">Webhook Logs</h2>
+            <span class="market-pill">Futures + Spot</span>
+        </div>
+        <p style="color: #9ca3af; font-size: 0.875rem;">Every TradingView signal received and its Futures or Spot execution result</p>
     </div>
     <div style="display: flex; gap: 8px; align-items: center;">
         <span id="autoRefreshLabel" style="font-size: 0.75rem; color: #6b7280;">Auto-refresh: ON</span>
@@ -39,6 +42,7 @@
         <thead>
             <tr>
                 <th>Time</th>
+                <th>Market</th>
                 <th>Symbol</th>
                 <th>Action</th>
                 <th>Timeframe</th>
@@ -50,7 +54,7 @@
             </tr>
         </thead>
         <tbody id="logsBody">
-            <tr><td colspan="9" style="text-align: center; color: #6b7280; padding: 32px;">Loading...</td></tr>
+            <tr><td colspan="10" style="text-align: center; color: #6b7280; padding: 32px;">Loading...</td></tr>
         </tbody>
     </table>
 </div>
@@ -103,14 +107,20 @@
             document.getElementById('statLatency').textContent = avgLatency > 0 ? `${avgLatency}ms` : '—';
 
             if (logs.length === 0) {
-                document.getElementById('logsBody').innerHTML = '<tr><td colspan="9" style="text-align: center; color: #6b7280; padding: 32px;">No webhooks received yet</td></tr>';
+                document.getElementById('logsBody').innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6b7280; padding: 32px;">No webhooks received yet</td></tr>';
                 return;
             }
 
             let html = '';
             for (const log of logs) {
                 const time = new Date(log.received_at).toLocaleString();
-                const actionClass = log.action === 'LONG' ? 'badge-green' : log.action === 'SHORT' ? 'badge-red' : 'badge-yellow';
+                const actionClass = (log.action === 'LONG' || log.action === 'BUY' || log.action === 'ENTRY') ? 'badge-green' : (log.action === 'SHORT' || log.action === 'SELL') ? 'badge-red' : 'badge-yellow';
+                const actionLabel = log.action;
+                const marketBadge = log.market_type === 'spot'
+                    ? '<span class="market-pill">Spot</span>'
+                    : log.market_type === 'mixed'
+                        ? '<span class="badge-yellow">Mixed</span>'
+                        : '<span class="badge-blue">Futures</span>';
 
                 let statusBadge;
                 if (log.status === 'SUCCESS') statusBadge = '<span class="badge-green">SUCCESS</span>';
@@ -125,8 +135,9 @@
 
                 html += `<tr>
                     <td style="font-size: 0.8rem; white-space: nowrap;">${esc(time)}</td>
+                    <td>${marketBadge}</td>
                     <td><span class="badge-blue">${esc(log.symbol)}</span></td>
-                    <td><span class="${actionClass}">${esc(log.action)}</span></td>
+                    <td><span class="${actionClass}">${esc(actionLabel)}</span></td>
                     <td>${esc(log.timeframe)}</td>
                     <td>${price}</td>
                     <td>${statusBadge}</td>
@@ -137,7 +148,7 @@
             }
             document.getElementById('logsBody').innerHTML = html;
         } catch (e) {
-            console.error('Failed to load webhook logs:', e);
+            showToast('Failed to load webhook logs', 'error');
         }
     }
 

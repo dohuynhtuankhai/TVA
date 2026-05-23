@@ -4,8 +4,11 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
-        <h2 style="font-size: 1.5rem; font-weight: 700;">Order History</h2>
-        <p style="color: #9ca3af; font-size: 0.875rem;">All trades across every account — better than Binance</p>
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <h2 style="font-size: 1.5rem; font-weight: 700;">Order History</h2>
+            <span class="market-pill">Futures + Spot</span>
+        </div>
+        <p style="color: #9ca3af; font-size: 0.875rem;">All Futures and Spot trades across every account</p>
     </div>
     <button class="btn-primary" id="syncBtn" onclick="syncFromBinance()">Sync from Binance</button>
 </div>
@@ -50,6 +53,8 @@
             <option value="">All actions</option>
             <option value="LONG">Long</option>
             <option value="SHORT">Short</option>
+            <option value="BUY">Buy</option>
+            <option value="SELL">Sell</option>
             <option value="EXIT">Exit</option>
         </select>
         <select class="input-field" id="filterStatus" style="max-width: 120px;">
@@ -78,7 +83,7 @@
                 <th>Price</th>
                 <th>Qty</th>
                 <th>Value (USDT)</th>
-                <th>Leverage</th>
+                <th>Market</th>
                 <th>Realized P&L</th>
                 <th>Status</th>
             </tr>
@@ -185,8 +190,13 @@
             let actionBadge = '';
             if (t.action === 'LONG') actionBadge = '<span class="badge-green">LONG</span>';
             else if (t.action === 'SHORT') actionBadge = '<span class="badge-red">SHORT</span>';
+            else if (t.action === 'BUY' || t.action === 'ENTRY') actionBadge = '<span class="badge-green">BUY</span>';
+            else if (t.action === 'SELL') actionBadge = '<span class="badge-red">SELL</span>';
             else if (t.action === 'EXIT') actionBadge = '<span class="badge-yellow">EXIT</span>';
             else actionBadge = esc(t.action) || '—';
+            const marketBadge = t.market_type === 'spot'
+                ? '<span class="market-pill">Spot 1x</span>'
+                : `<span class="badge-blue">Futures ${t.leverage ? t.leverage + 'x' : ''}</span>`;
 
             return `<tr>
                 <td style="font-size:0.75rem; color:#9ca3af; white-space:nowrap;">${esc(time)}</td>
@@ -197,7 +207,7 @@
                 <td>${t.entry_price ? t.entry_price.toLocaleString(undefined, {minimumFractionDigits: 2}) : '—'}</td>
                 <td>${t.quantity ? t.quantity.toFixed(4) : '—'}</td>
                 <td>${t.usdt_value ? t.usdt_value.toFixed(2) : '—'}</td>
-                <td>${t.leverage ? t.leverage + 'x' : '—'}</td>
+                <td>${marketBadge}</td>
                 <td class="${pnlClass}" style="font-weight:500;">${t.realized_pnl !== 0 ? (t.realized_pnl > 0 ? '+' : '') + t.realized_pnl.toFixed(2) : '—'}</td>
                 <td><span class="${statusBadge}">${esc(t.status)}</span></td>
             </tr>`;

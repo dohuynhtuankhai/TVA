@@ -3,26 +3,29 @@
 
 {% block content %}
 <div style="margin-bottom: 24px;">
-    <h2 style="font-size: 1.5rem; font-weight: 700;">Dashboard</h2>
-    <p style="color: #9ca3af; font-size: 0.875rem;">Real-time portfolio overview across all accounts</p>
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Dashboard</h2>
+        <span class="market-pill">Futures + Spot</span>
+    </div>
+    <p style="color: #9ca3af; font-size: 0.875rem;">Real-time portfolio overview across Futures and Spot accounts</p>
 </div>
 
 <!-- Stat Cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px;">
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Balance</p>
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Equity</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalBalance">—</p>
         <p style="color: #6b7280; font-size: 0.75rem;">USDT</p>
     </div>
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Available Margin</p>
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Available Capital</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalMargin">—</p>
         <p style="color: #6b7280; font-size: 0.75rem;">USDT</p>
     </div>
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Margin Utilization</p>
+        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Utilization</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="avgUtil">—</p>
-        <p style="color: #6b7280; font-size: 0.75rem;">Average %</p>
+        <p style="color: #6b7280; font-size: 0.75rem;">Estimated %</p>
     </div>
     <div class="card stat-card" style="padding: 20px;">
         <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Trades</p>
@@ -38,13 +41,14 @@
         <thead>
             <tr>
                 <th>Account</th>
-                <th>Wallet Balance</th>
-                <th>Available Margin</th>
+                <th>Market</th>
+                <th>Equity / Wallet</th>
+                <th>Available</th>
                 <th>Utilization</th>
             </tr>
         </thead>
         <tbody id="accountsTable">
-            <tr><td colspan="4" style="text-align: center; color: #6b7280;">Loading…</td></tr>
+            <tr><td colspan="5" style="text-align: center; color: #6b7280;">Loading…</td></tr>
         </tbody>
     </table>
 </div>
@@ -56,6 +60,7 @@
         <thead>
             <tr>
                 <th>Time</th>
+                <th>Market</th>
                 <th>Symbol</th>
                 <th>Action</th>
                 <th>Side</th>
@@ -67,7 +72,7 @@
             </tr>
         </thead>
         <tbody id="tradesTable">
-            <tr><td colspan="9" style="text-align: center; color: #6b7280;">Loading…</td></tr>
+            <tr><td colspan="10" style="text-align: center; color: #6b7280;">Loading…</td></tr>
         </tbody>
     </table>
 </div>
@@ -85,19 +90,22 @@
 
             const tbody = document.getElementById('accountsTable');
             if (data.accounts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #6b7280;">No active accounts</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">No active accounts</td></tr>';
             } else {
-                tbody.innerHTML = data.accounts.map(a => `
+                tbody.innerHTML = data.accounts.map(a => {
+                    const market = a.market_type === 'spot' ? '<span class="market-pill">Spot</span>' : '<span class="badge-blue">Futures</span>';
+                    return `
                     <tr>
                         <td style="font-weight: 500;">${esc(a.account_name)}</td>
+                        <td>${market}</td>
                         <td>${Number(a.wallet_balance).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         <td>${Number(a.available_margin).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                         <td><span class="badge-${a.margin_utilization > 80 ? 'red' : a.margin_utilization > 50 ? 'yellow' : 'green'}">${Number(a.margin_utilization).toFixed(1)}%</span></td>
                     </tr>
-                `).join('');
+                `}).join('');
             }
         } catch (e) {
-            console.error('Dashboard load failed:', e);
+            showToast('Failed to load dashboard data', 'error');
         }
     }
 
@@ -109,7 +117,9 @@
             const pnlEl = document.getElementById('totalPnlLabel');
             pnlEl.textContent = `P&L: ${data.total_pnl >= 0 ? '+' : ''}${data.total_pnl.toFixed(2)} USDT`;
             pnlEl.className = data.total_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
-        } catch (e) {}
+        } catch (e) {
+            showToast('Failed to load trade stats', 'error');
+        }
     }
 
     async function loadRecentTrades() {
@@ -118,14 +128,16 @@
             const trades = await res.json();
             const tbody = document.getElementById('tradesTable');
             if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #6b7280;">No trades yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6b7280;">No trades yet</td></tr>';
             } else {
                 tbody.innerHTML = trades.map(t => {
                     const time = new Date(t.executed_at).toLocaleString();
                     const pnlClass = t.realized_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
                     const statusBadge = t.status === 'FILLED' ? 'badge-green' : t.status === 'ERROR' ? 'badge-red' : 'badge-yellow';
+                    const market = t.market_type === 'spot' ? '<span class="market-pill">Spot</span>' : '<span class="badge-blue">Futures</span>';
                     return `<tr>
                         <td style="font-size:0.8rem; color:#9ca3af;">${esc(time)}</td>
+                        <td>${market}</td>
                         <td style="font-weight:500;">${esc(t.symbol)}</td>
                         <td>${esc(t.action)}</td>
                         <td>${esc(t.side)}</td>
@@ -137,7 +149,9 @@
                     </tr>`;
                 }).join('');
             }
-        } catch (e) {}
+        } catch (e) {
+            showToast('Failed to load recent trades', 'error');
+        }
     }
 
     // WS event handlers

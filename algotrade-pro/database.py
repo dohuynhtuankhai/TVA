@@ -1,8 +1,12 @@
 """Async SQLAlchemy engine and session factory."""
 
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config import settings
+
+logger = logging.getLogger("algotrade.database")
 
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
 
@@ -32,6 +36,10 @@ async def _add_missing_columns():
         ("bot_settings", "telegram_bot_token", "VARCHAR(256)"),
         ("bot_settings", "telegram_chat_id", "VARCHAR(64)"),
         ("bot_settings", "telegram_enabled", "BOOLEAN DEFAULT 0"),
+        ("exchange_accounts", "market_type", "VARCHAR(10) DEFAULT 'futures'"),
+        ("symbol_mappings", "market_type", "VARCHAR(10) DEFAULT 'futures'"),
+        ("trade_records", "market_type", "VARCHAR(10) DEFAULT 'futures'"),
+        ("webhook_logs", "market_type", "VARCHAR(10)"),
     ]
 
     async with engine.begin() as conn:
@@ -42,5 +50,6 @@ async def _add_missing_columns():
                         f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
                     )
                 )
-            except Exception:
-                pass  # Column already exists
+            except Exception as e:
+                # "duplicate column" is expected for already-migrated DBs
+                logger.debug("Migration skip %s.%s: %s", table, column, e)

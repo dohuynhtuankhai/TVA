@@ -1,11 +1,7 @@
-"""Bot Engine – the autonomous risk manager and execution layer.
+"""Bot Engine - autonomous risk management and exchange execution.
 
-Responsibilities:
-1. Risk Evaluation   – check bot_active, daily_loss_limit, max_drawdown
-2. Position Sizing   – dynamic % of real-time account balance
-3. Leverage Mgmt     – override exchange default before order
-4. Execution         – construct & send Binance Futures orders
-5. Ledger Recording  – log trade details into SQLite
+Supports Binance Futures and Binance Spot side by side. Existing accounts
+default to Futures; Spot is opt-in per account.
 """
 
 import asyncio
@@ -15,7 +11,7 @@ from datetime import datetime, timezone
 from binance import AsyncClient
 from binance.enums import SIDE_BUY, SIDE_SELL, ORDER_TYPE_MARKET, FUTURE_ORDER_TYPE_MARKET
 from binance.exceptions import BinanceAPIException
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -27,103 +23,104 @@ from schemas import WebhookPayload
 logger = logging.getLogger("algotrade.bot_engine")
 
 
+def _market_type(account: ExchangeAccount) -> str:
+    return (getattr(account, "market_type", None) or "futures").lower()
+
+
 async def get_testnet_mode() -> bool:
     """Read the current testnet_mode from the database."""
     async with async_session() as db:
         result = await db.execute(select(BotSettings).where(BotSettings.id == 1))
         bot_settings = result.scalar_one_or_none()
         if bot_settings is None:
-            return True  # Default to testnet for safety
+            return True
         return bot_settings.testnet_mode
 
 
-async def create_binance_client(api_key: str, api_secret: str, testnet: bool | None = None) -> AsyncClient:
-    """Create a Binance AsyncClient pointing at testnet or live.
-
-    If testnet is not explicitly passed, reads the setting from the database.
-    """
+async def create_binance_client(
+    api_key: str,
+    api_secret: str,
+    testnet: bool | None = None,
+    market_type: str = "futures",
+) -> AsyncClient:
+    """Create a Binance AsyncClient for either Futures or Spot."""
     if testnet is None:
         testnet = await get_testnet_mode()
 
+    market = (market_type or "futures").lower()
     client = await AsyncClient.create(
         api_key=api_key,
         api_secret=api_secret,
         testnet=testnet,
         requests_params={"timeout": 15},
     )
-    if testnet:
-        client.FUTURES_URL = settings.BINANCE_TESTNET_API_URL + "/fapi"
-        logger.info("Connected to Binance TESTNET")
+
+    if market == "spot":
+        client.API_URL = (
+            settings.BINANCE_SPOT_TESTNET_API_URL
+            if testnet
+            else settings.BINANCE_SPOT_LIVE_API_URL
+        ) + "/api"
+        logger.info("Connected to Binance Spot %s", "TESTNET" if testnet else "LIVE")
     else:
-        logger.info("Connected to Binance LIVE")
+        client.FUTURES_URL = (
+            settings.BINANCE_FUTURES_TESTNET_API_URL
+            if testnet
+            else settings.BINANCE_FUTURES_LIVE_API_URL
+        ) + "/fapi"
+        logger.info("Connected to Binance Futures %s", "TESTNET" if testnet else "LIVE")
+
     return client
 
 
 class BotEngine:
     """Core trading engine that processes webhook signals."""
 
-    # ── Public entry point ───────────────────────────────────────────────
-
     async def process_signal(self, payload: WebhookPayload) -> list[dict]:
-        """Process a validated webhook signal end-to-end.
-
-        Returns a list of result dicts (one per target account).
-        """
+        """Process a validated webhook signal end-to-end."""
         async with async_session() as db:
-            # 1. Load global settings
             bot_settings = await self._get_bot_settings(db)
             if not bot_settings.bot_active:
-                logger.warning("Bot is INACTIVE – ignoring signal %s", payload.symbol)
+                logger.warning("Bot is INACTIVE - ignoring signal %s", payload.symbol)
                 return [{"status": "BLOCKED", "reason": "Bot is inactive"}]
 
-            # 2. Find target account(s) for this symbol + timeframe
             accounts = await self._resolve_accounts(db, payload.symbol, payload.timeframe)
             if not accounts:
-                logger.warning(
-                    "No account mapped for %s @ %s", payload.symbol, payload.timeframe
-                )
+                logger.warning("No account mapped for %s @ %s", payload.symbol, payload.timeframe)
                 return [{"status": "NO_MAPPING", "symbol": payload.symbol}]
 
-        # 3. Execute against each mapped account. Each task owns its DB session;
-        # AsyncSession instances are not safe to share across concurrent tasks.
-        tasks = [
-            self._execute_for_account(acct, payload, bot_settings)
-            for acct in accounts
-        ]
+        tasks = [self._execute_for_account(acct, payload, bot_settings) for acct in accounts]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        # Convert exceptions to error dicts
         final = []
-        for r in results:
-            if isinstance(r, Exception):
-                final.append({"status": "ERROR", "error": str(r)})
+        for result in results:
+            if isinstance(result, Exception):
+                final.append({"status": "ERROR", "error": str(result)})
             else:
-                final.append(r)
-
+                final.append(result)
         return final
-
-    # ── Private helpers ──────────────────────────────────────────────────
 
     async def _get_bot_settings(self, db: AsyncSession) -> BotSettings:
         result = await db.execute(select(BotSettings).where(BotSettings.id == 1))
-        settings = result.scalar_one_or_none()
-        if settings is None:
-            settings = BotSettings(id=1)
-            db.add(settings)
+        bot_settings = result.scalar_one_or_none()
+        if bot_settings is None:
+            bot_settings = BotSettings(id=1)
+            db.add(bot_settings)
             await db.commit()
-            await db.refresh(settings)
-        return settings
+            await db.refresh(bot_settings)
+        return bot_settings
 
     async def _resolve_accounts(
         self, db: AsyncSession, symbol: str, timeframe: str
     ) -> list[ExchangeAccount]:
-        """Return active accounts mapped to this (symbol, timeframe)."""
+        """Return active, enabled accounts mapped to this symbol/timeframe."""
         result = await db.execute(
             select(ExchangeAccount)
             .join(SymbolMapping)
             .where(
                 SymbolMapping.symbol == symbol.upper(),
                 SymbolMapping.timeframe == timeframe,
+                SymbolMapping.market_type == ExchangeAccount.market_type,
                 ExchangeAccount.is_active == True,  # noqa: E712
                 ExchangeAccount.futures_enabled == True,
             )
@@ -136,91 +133,80 @@ class BotEngine:
         payload: WebhookPayload,
         bot_settings: BotSettings,
     ) -> dict:
-        """Run the full trade pipeline for a single account."""
-        client = None
         async with async_session() as db:
-            return await self._execute_for_account_with_session(
-                db, account, payload, bot_settings, client
-            )
+            if _market_type(account) == "spot":
+                return await self._execute_spot_for_account(db, account, payload, bot_settings)
+            return await self._execute_futures_for_account(db, account, payload, bot_settings)
 
-    async def _execute_for_account_with_session(
+    # ── Futures execution ─────────────────────────────────────────────
+
+    async def _execute_futures_for_account(
         self,
         db: AsyncSession,
         account: ExchangeAccount,
         payload: WebhookPayload,
         bot_settings: BotSettings,
-        client: AsyncClient | None,
     ) -> dict:
-        """Run the trade pipeline using a task-owned DB session."""
+        client = None
         try:
             warnings: list[str] = []
-
-            # ── Risk gate ────────────────────────────────────────────
-            blocked_reason = await self._check_risk_limits(
-                db, account, bot_settings
-            )
+            blocked_reason = await self._check_risk_limits(db, account, bot_settings)
             if blocked_reason:
                 await self._record_trade(
                     db, account, payload, status="REJECTED", error=blocked_reason
                 )
                 return {"status": "BLOCKED", "account": account.name, "reason": blocked_reason}
 
-            # ── Connect to Binance ───────────────────────────────────
             secret = decrypt_secret(account.api_secret_encrypted)
-            client = await create_binance_client(account.api_key, secret)
+            client = await create_binance_client(
+                account.api_key, secret, market_type="futures"
+            )
 
-            # ── Fetch real-time balance ──────────────────────────────
             futures_account = await client.futures_account()
             wallet_balance = float(futures_account["totalWalletBalance"])
 
-            # ── Dynamic position sizing (per-account) ────────────────
             if account.trading_size_type == "fixed":
                 risk_amount = account.trading_size_value
-            else:  # percent
+            else:
                 risk_amount = wallet_balance * (account.trading_size_value / 100.0)
 
-            # ── Determine side ───────────────────────────────────────
             action = payload.action.upper()
-            if action in ("ENTRY", "LONG"):
+            if action in ("ENTRY", "LONG", "BUY"):
                 side = SIDE_BUY
+                record_action = "LONG"
             elif action == "SHORT":
                 side = SIDE_SELL
-            elif action == "EXIT":
-                return await self._handle_exit(
-                    db, client, account, payload, bot_settings
-                )
+                record_action = "SHORT"
+            elif action in ("EXIT", "SELL"):
+                return await self._handle_futures_exit(db, client, account, payload)
             else:
                 return {"status": "ERROR", "error": f"Unknown action: {action}"}
 
-            # ── Single trade mode: close existing before new entry ────
             if account.trade_mode == "single":
-                await self._close_existing_position(
+                await self._close_existing_futures_position(
                     client, account, payload.symbol.upper()
                 )
 
-            # ── Set leverage (per-account) ────────────────────────────
             await client.futures_change_leverage(
                 symbol=payload.symbol.upper(),
                 leverage=account.leverage,
             )
 
-            # ── Calculate quantity ────────────────────────────────────
-            symbol_info = await self._get_symbol_info(client, payload.symbol.upper())
+            symbol_info = await self._get_futures_symbol_info(client, payload.symbol.upper())
             tick_size = self._get_tick_size(symbol_info)
-            quantity = await self._calculate_quantity(
+            quantity = await self._calculate_futures_quantity(
                 client, payload.symbol.upper(), risk_amount, symbol_info
             )
 
-            # ── Place MARKET order ───────────────────────────────────
-            # Notify order placed
             try:
                 from notifications import notify_order_placed
+
                 await notify_order_placed(
-                    account.name, payload.symbol.upper(), action,
+                    account.name, payload.symbol.upper(), record_action,
                     side, float(quantity), account.leverage,
                 )
             except Exception:
-                pass  # Never block execution for notifications
+                pass
 
             order = await client.futures_create_order(
                 symbol=payload.symbol.upper(),
@@ -229,24 +215,19 @@ class BotEngine:
                 quantity=quantity,
             )
 
-            # Get price: try avgPrice → fills → webhook price
-            entry_price = float(order.get("avgPrice", 0) or 0)
-            if entry_price == 0 and order.get("fills"):
-                fills = order["fills"]
-                total_qty = sum(float(f["qty"]) for f in fills)
-                if total_qty > 0:
-                    entry_price = sum(float(f["price"]) * float(f["qty"]) for f in fills) / total_qty
-            if entry_price == 0 and payload.price:
-                entry_price = payload.price
+            entry_price = self._resolve_order_price(order, payload.price)
             usdt_value = entry_price * float(quantity)
 
-            # ── Place stoploss if configured ─────────────────────────
             if account.stoploss_percent and entry_price > 0:
                 sl_side = SIDE_SELL if side == SIDE_BUY else SIDE_BUY
                 if side == SIDE_BUY:
-                    sl_price = self._round_price(entry_price * (1 - account.stoploss_percent / 100), tick_size)
+                    sl_price = self._round_price(
+                        entry_price * (1 - account.stoploss_percent / 100), tick_size
+                    )
                 else:
-                    sl_price = self._round_price(entry_price * (1 + account.stoploss_percent / 100), tick_size)
+                    sl_price = self._round_price(
+                        entry_price * (1 + account.stoploss_percent / 100), tick_size
+                    )
                 try:
                     await client.futures_create_order(
                         symbol=payload.symbol.upper(),
@@ -255,24 +236,19 @@ class BotEngine:
                         stopPrice=str(sl_price),
                         closePosition=True,
                     )
-                    logger.info("Stoploss placed at %s for %s", sl_price, payload.symbol)
+                    logger.info("Futures stoploss placed at %s for %s", sl_price, payload.symbol)
                 except Exception as e:
-                    logger.warning("Stoploss order failed: %s", str(e))
+                    logger.warning("Futures stoploss order failed: %s", str(e))
                     warnings.append(f"Stoploss order failed: {str(e)}")
 
-            # ── Place trailing stop if configured ────────────────────
-            logger.info(
-                "Trailing stop check: callback=%s, activation=%s, entry_price=%s",
-                account.trail_callback_pct, account.trail_activation_pct, entry_price,
-            )
             is_testnet = await get_testnet_mode()
             if account.trail_callback_pct and account.trail_callback_pct > 0 and entry_price > 0:
                 if is_testnet:
                     warning = (
-                        "Trailing stop skipped: Binance Testnet does not support "
+                        "Trailing stop skipped: Binance Futures Testnet does not support "
                         "TRAILING_STOP_MARKET orders"
                     )
-                    logger.warning("%s. This will work on live trading.", warning)
+                    logger.warning("%s. This will work on live Futures trading.", warning)
                     warnings.append(warning)
                 else:
                     trail_side = SIDE_SELL if side == SIDE_BUY else SIDE_BUY
@@ -288,31 +264,28 @@ class BotEngine:
                         }
                         if account.trail_activation_pct and account.trail_activation_pct > 0:
                             if side == SIDE_BUY:
-                                act_price = self._round_price(entry_price * (1 + account.trail_activation_pct / 100), tick_size)
+                                act_price = self._round_price(
+                                    entry_price * (1 + account.trail_activation_pct / 100),
+                                    tick_size,
+                                )
                             else:
-                                act_price = self._round_price(entry_price * (1 - account.trail_activation_pct / 100), tick_size)
+                                act_price = self._round_price(
+                                    entry_price * (1 - account.trail_activation_pct / 100),
+                                    tick_size,
+                                )
                             trail_params["activationPrice"] = str(act_price)
 
-                        logger.info("Placing trailing stop with params: %s", trail_params)
                         await client.futures_create_order(**trail_params)
-
-                        logger.info(
-                            "Trailing stop PLACED: callback=%.1f%%, activation=%s for %s",
-                            account.trail_callback_pct,
-                            trail_params.get("activationPrice", "immediate"),
-                            payload.symbol,
-                        )
+                        logger.info("Futures trailing stop placed for %s", payload.symbol)
                     except Exception as e:
-                        logger.error("Trailing stop order FAILED: %s", str(e), exc_info=True)
+                        logger.error("Futures trailing stop order failed: %s", str(e), exc_info=True)
                         warnings.append(f"Trailing stop order failed: {str(e)}")
-            else:
-                logger.info("Trailing stop skipped (not configured or entry_price=0)")
 
-            # ── Record to ledger ─────────────────────────────────────
             await self._record_trade(
                 db,
                 account,
                 payload,
+                action=record_action,
                 side=side,
                 entry_price=entry_price,
                 quantity=float(quantity),
@@ -321,16 +294,13 @@ class BotEngine:
                 status="FILLED",
             )
 
-            logger.info(
-                "FILLED %s %s %s qty=%s @ %s for account %s",
-                side, payload.symbol, action, quantity, entry_price, account.name,
-            )
-
             result = {
                 "status": "FILLED",
+                "market_type": "futures",
                 "account": account.name,
                 "symbol": payload.symbol,
                 "side": side,
+                "action": record_action,
                 "quantity": float(quantity),
                 "entry_price": entry_price,
                 "usdt_value": usdt_value,
@@ -340,36 +310,29 @@ class BotEngine:
             return result
 
         except BinanceAPIException as e:
-            error_msg = f"Binance API error: {e.message} (code {e.code})"
+            error_msg = f"Binance Futures API error: {e.message} (code {e.code})"
             logger.error(error_msg)
-            await self._record_trade(
-                db, account, payload, status="ERROR", error=error_msg
-            )
-            return {"status": "ERROR", "account": account.name, "error": error_msg}
-
+            await self._record_trade(db, account, payload, status="ERROR", error=error_msg)
+            return {"status": "ERROR", "market_type": "futures", "account": account.name, "error": error_msg}
         except Exception as e:
-            error_msg = f"Unexpected error: {str(e)}"
+            error_msg = f"Unexpected Futures error: {str(e)}"
             logger.error(error_msg, exc_info=True)
-            await self._record_trade(
-                db, account, payload, status="ERROR", error=error_msg
-            )
-            return {"status": "ERROR", "account": account.name, "error": error_msg}
-
+            await self._record_trade(db, account, payload, status="ERROR", error=error_msg)
+            return {"status": "ERROR", "market_type": "futures", "account": account.name, "error": error_msg}
         finally:
             if client:
                 await client.close_connection()
 
-    async def _close_existing_position(
+    async def _close_existing_futures_position(
         self,
         client: AsyncClient,
         account: ExchangeAccount,
         symbol: str,
     ):
-        """Close any open position on this symbol (used by single-trade mode)."""
         try:
             positions = await client.futures_position_information(symbol=symbol)
-            for p in positions:
-                amt = float(p.get("positionAmt", 0))
+            for position in positions:
+                amt = float(position.get("positionAmt", 0))
                 if amt != 0:
                     close_side = SIDE_SELL if amt > 0 else SIDE_BUY
                     await client.futures_create_order(
@@ -380,36 +343,31 @@ class BotEngine:
                         reduceOnly=True,
                     )
                     logger.info(
-                        "Single-trade mode: closed existing %s position (%.4f) on %s for %s",
+                        "Single-trade mode: closed existing Futures %s position (%.4f) on %s for %s",
                         "LONG" if amt > 0 else "SHORT", abs(amt), symbol, account.name,
                     )
         except Exception as e:
-            logger.warning("Failed to close existing position on %s: %s", symbol, str(e))
+            logger.warning("Failed to close existing Futures position on %s: %s", symbol, str(e))
 
-    async def _handle_exit(
+    async def _handle_futures_exit(
         self,
         db: AsyncSession,
         client: AsyncClient,
         account: ExchangeAccount,
         payload: WebhookPayload,
-        bot_settings: BotSettings,
     ) -> dict:
-        """Close an open position for the given symbol."""
         try:
-            # Get current position
-            positions = await client.futures_position_information(
-                symbol=payload.symbol.upper()
-            )
+            positions = await client.futures_position_information(symbol=payload.symbol.upper())
             position = None
-            for p in positions:
-                amt = float(p.get("positionAmt", 0))
-                if amt != 0:
-                    position = p
+            for candidate in positions:
+                if float(candidate.get("positionAmt", 0)) != 0:
+                    position = candidate
                     break
 
             if not position:
                 return {
                     "status": "NO_POSITION",
+                    "market_type": "futures",
                     "account": account.name,
                     "symbol": payload.symbol,
                 }
@@ -427,26 +385,16 @@ class BotEngine:
             )
 
             realized_pnl = float(position.get("unRealizedProfit", 0))
-            exit_entry_price = float(position.get("entryPrice", 0))
-
-            # Get exit price from order fills or webhook
-            exit_price = float(order.get("avgPrice", 0) or 0)
-            if exit_price == 0 and order.get("fills"):
-                fills = order["fills"]
-                total_qty = sum(float(f["qty"]) for f in fills)
-                if total_qty > 0:
-                    exit_price = sum(float(f["price"]) * float(f["qty"]) for f in fills) / total_qty
-            if exit_price == 0 and payload.price:
-                exit_price = payload.price
+            exit_price = self._resolve_order_price(order, payload.price)
             if exit_price == 0:
                 exit_price = float(position.get("markPrice", 0))
-
             usdt_value = exit_price * quantity
 
             await self._record_trade(
                 db,
                 account,
                 payload,
+                action="EXIT",
                 side=side,
                 entry_price=exit_price,
                 quantity=quantity,
@@ -455,31 +403,232 @@ class BotEngine:
                 leverage=account.leverage,
                 status="FILLED",
             )
-
-            # Update daily PnL tracker
             await self._update_daily_pnl(db, account.id, realized_pnl)
 
             return {
                 "status": "CLOSED",
+                "market_type": "futures",
                 "account": account.name,
                 "symbol": payload.symbol,
                 "realized_pnl": realized_pnl,
             }
 
         except BinanceAPIException as e:
-            error_msg = f"Exit error: {e.message}"
+            error_msg = f"Futures exit error: {e.message}"
             logger.error(error_msg)
-            await self._record_trade(
-                db, account, payload, status="ERROR", error=error_msg
+            await self._record_trade(db, account, payload, status="ERROR", error=error_msg)
+            return {"status": "ERROR", "market_type": "futures", "account": account.name, "error": error_msg}
+
+    # ── Spot execution ────────────────────────────────────────────────
+
+    async def _execute_spot_for_account(
+        self,
+        db: AsyncSession,
+        account: ExchangeAccount,
+        payload: WebhookPayload,
+        bot_settings: BotSettings,
+    ) -> dict:
+        client = None
+        try:
+            warnings: list[str] = []
+            blocked_reason = await self._check_risk_limits(db, account, bot_settings)
+            if blocked_reason:
+                await self._record_trade(
+                    db, account, payload, status="REJECTED", error=blocked_reason
+                )
+                return {"status": "BLOCKED", "account": account.name, "reason": blocked_reason}
+
+            secret = decrypt_secret(account.api_secret_encrypted)
+            client = await create_binance_client(account.api_key, secret, market_type="spot")
+
+            spot_account = await client.get_account()
+            wallet_balance = await self._estimate_spot_equity(client, spot_account)
+            available_usdt = self._get_balance_from_account_info(spot_account, "USDT")
+
+            if account.trading_size_type == "fixed":
+                risk_amount = account.trading_size_value
+            else:
+                risk_amount = wallet_balance * (account.trading_size_value / 100.0)
+            risk_amount = min(risk_amount, available_usdt)
+
+            action = payload.action.upper()
+            if action in ("ENTRY", "LONG", "BUY"):
+                side = SIDE_BUY
+            elif action in ("SHORT", "EXIT", "SELL"):
+                return await self._handle_spot_sell(db, client, account, payload)
+            else:
+                return {"status": "ERROR", "error": f"Unknown action: {action}"}
+
+            symbol_info = await self._get_spot_symbol_info(client, payload.symbol.upper())
+            tick_size = self._get_tick_size(symbol_info)
+            quantity = await self._calculate_spot_quantity(
+                client, payload.symbol.upper(), risk_amount, symbol_info
             )
-            return {"status": "ERROR", "account": account.name, "error": error_msg}
+
+            if account.trade_mode == "single":
+                base_asset = symbol_info.get("baseAsset")
+                existing_qty = await self._get_free_asset_balance(client, base_asset)
+                if existing_qty > 0:
+                    message = (
+                        f"Spot single mode blocked duplicate BUY: existing "
+                        f"{base_asset} balance is {existing_qty}"
+                    )
+                    await self._record_trade(
+                        db, account, payload, action="BUY", status="REJECTED", error=message
+                    )
+                    return {"status": "BLOCKED", "market_type": "spot", "account": account.name, "reason": message}
+
+            try:
+                from notifications import notify_order_placed
+
+                await notify_order_placed(
+                    account.name, payload.symbol.upper(), "BUY", side, float(quantity), 1
+                )
+            except Exception:
+                pass
+
+            order = await client.create_order(
+                symbol=payload.symbol.upper(),
+                side=side,
+                type=ORDER_TYPE_MARKET,
+                quantity=quantity,
+            )
+
+            entry_price = self._resolve_order_price(order, payload.price)
+            usdt_value = entry_price * float(quantity)
+
+            if account.stoploss_percent and entry_price > 0:
+                sl_price = self._round_price(
+                    entry_price * (1 - account.stoploss_percent / 100), tick_size
+                )
+                try:
+                    await client.create_order(
+                        symbol=payload.symbol.upper(),
+                        side=SIDE_SELL,
+                        type="STOP_LOSS_LIMIT",
+                        quantity=quantity,
+                        stopPrice=str(sl_price),
+                        price=str(sl_price),
+                        timeInForce="GTC",
+                    )
+                    logger.info("Spot stoploss placed at %s for %s", sl_price, payload.symbol)
+                except Exception as e:
+                    logger.warning("Spot stoploss order failed: %s", str(e))
+                    warnings.append(f"Spot stoploss order failed: {str(e)}")
+
+            if account.trail_callback_pct:
+                warnings.append("Trailing stop is Futures-only and ignored for Spot orders")
+
+            await self._record_trade(
+                db,
+                account,
+                payload,
+                action="BUY",
+                side=side,
+                entry_price=entry_price,
+                quantity=float(quantity),
+                usdt_value=usdt_value,
+                leverage=1,
+                status="FILLED",
+            )
+
+            result = {
+                "status": "FILLED",
+                "market_type": "spot",
+                "account": account.name,
+                "symbol": payload.symbol,
+                "side": side,
+                "action": "BUY",
+                "quantity": float(quantity),
+                "entry_price": entry_price,
+                "usdt_value": usdt_value,
+            }
+            if warnings:
+                result["warnings"] = warnings
+            return result
+
+        except BinanceAPIException as e:
+            error_msg = f"Binance Spot API error: {e.message} (code {e.code})"
+            logger.error(error_msg)
+            await self._record_trade(db, account, payload, status="ERROR", error=error_msg)
+            return {"status": "ERROR", "market_type": "spot", "account": account.name, "error": error_msg}
+        except Exception as e:
+            error_msg = f"Unexpected Spot error: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            await self._record_trade(db, account, payload, status="ERROR", error=error_msg)
+            return {"status": "ERROR", "market_type": "spot", "account": account.name, "error": error_msg}
+        finally:
+            if client:
+                await client.close_connection()
+
+    async def _handle_spot_sell(
+        self,
+        db: AsyncSession,
+        client: AsyncClient,
+        account: ExchangeAccount,
+        payload: WebhookPayload,
+    ) -> dict:
+        try:
+            symbol_info = await self._get_spot_symbol_info(client, payload.symbol.upper())
+            base_asset = symbol_info.get("baseAsset")
+            quantity = await self._get_free_asset_balance(client, base_asset)
+            quantity = self._round_quantity(quantity, symbol_info)
+
+            if quantity <= 0:
+                return {
+                    "status": "NO_HOLDING",
+                    "market_type": "spot",
+                    "account": account.name,
+                    "symbol": payload.symbol,
+                }
+
+            order = await client.create_order(
+                symbol=payload.symbol.upper(),
+                side=SIDE_SELL,
+                type=ORDER_TYPE_MARKET,
+                quantity=quantity,
+            )
+
+            exit_price = self._resolve_order_price(order, payload.price)
+            if exit_price == 0:
+                ticker = await client.get_symbol_ticker(symbol=payload.symbol.upper())
+                exit_price = float(ticker["price"])
+            usdt_value = exit_price * quantity
+
+            await self._record_trade(
+                db,
+                account,
+                payload,
+                action="SELL" if payload.action.upper() != "EXIT" else "EXIT",
+                side=SIDE_SELL,
+                entry_price=exit_price,
+                quantity=quantity,
+                usdt_value=round(usdt_value, 2),
+                realized_pnl=0,
+                leverage=1,
+                status="FILLED",
+            )
+
+            return {
+                "status": "CLOSED",
+                "market_type": "spot",
+                "account": account.name,
+                "symbol": payload.symbol,
+                "realized_pnl": 0,
+            }
+
+        except BinanceAPIException as e:
+            error_msg = f"Spot sell error: {e.message}"
+            logger.error(error_msg)
+            await self._record_trade(db, account, payload, status="ERROR", error=error_msg)
+            return {"status": "ERROR", "market_type": "spot", "account": account.name, "error": error_msg}
+
+    # ── Shared helpers ────────────────────────────────────────────────
 
     async def _check_risk_limits(
         self, db: AsyncSession, account: ExchangeAccount, bot_settings: BotSettings
     ) -> str | None:
-        """Return a reason string if the trade should be blocked, else None."""
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
         result = await db.execute(
             select(DailyPnl).where(
                 DailyPnl.account_id == account.id,
@@ -487,15 +636,12 @@ class BotEngine:
             )
         )
         daily = result.scalar_one_or_none()
+        if daily and daily.realized_pnl <= -bot_settings.daily_loss_limit:
+            return (
+                f"Daily loss limit reached: {daily.realized_pnl:.2f} USDT "
+                f"(limit: -{bot_settings.daily_loss_limit:.2f})"
+            )
 
-        if daily:
-            if daily.realized_pnl <= -bot_settings.daily_loss_limit:
-                return (
-                    f"Daily loss limit reached: {daily.realized_pnl:.2f} USDT "
-                    f"(limit: -{bot_settings.daily_loss_limit:.2f})"
-                )
-
-        # Check max drawdown (cumulative all-time negative PnL)
         result = await db.execute(
             select(func.sum(TradeRecord.realized_pnl)).where(
                 TradeRecord.account_id == account.id
@@ -507,52 +653,62 @@ class BotEngine:
                 f"Max drawdown reached: {total_pnl:.2f} USDT "
                 f"(limit: -{bot_settings.max_drawdown:.2f})"
             )
-
         return None
 
-    async def _get_symbol_info(self, client: AsyncClient, symbol: str) -> dict:
-        """Fetch and cache symbol info including tick size and step size."""
+    async def _get_futures_symbol_info(self, client: AsyncClient, symbol: str) -> dict:
         info = await client.futures_exchange_info()
-        for s in info["symbols"]:
-            if s["symbol"] == symbol:
-                return s
+        for symbol_info in info["symbols"]:
+            if symbol_info["symbol"] == symbol:
+                return symbol_info
         raise ValueError(f"Symbol {symbol} not found on Binance Futures")
 
+    async def _get_spot_symbol_info(self, client: AsyncClient, symbol: str) -> dict:
+        info = await client.get_exchange_info()
+        for symbol_info in info["symbols"]:
+            if symbol_info["symbol"] == symbol:
+                return symbol_info
+        raise ValueError(f"Symbol {symbol} not found on Binance Spot")
+
     def _get_tick_size(self, symbol_info: dict) -> float:
-        """Extract tick size (price precision) from symbol filters."""
-        for f in symbol_info["filters"]:
-            if f["filterType"] == "PRICE_FILTER":
-                return float(f["tickSize"])
-        return 0.01  # safe fallback
+        for item in symbol_info["filters"]:
+            if item["filterType"] == "PRICE_FILTER":
+                return float(item["tickSize"])
+        return 0.01
 
     def _round_price(self, price: float, tick_size: float) -> float:
-        """Round a price to the nearest valid tick size."""
         if tick_size <= 0:
             return round(price, 2)
         precision = len(str(tick_size).rstrip("0").split(".")[-1]) if "." in str(tick_size) else 0
         return round(round(price / tick_size) * tick_size, precision)
 
-    async def _calculate_quantity(
-        self, client: AsyncClient, symbol: str, risk_amount: float, symbol_info: dict = None
+    def _round_quantity(self, quantity: float, symbol_info: dict) -> float:
+        step_size = self._get_step_size(symbol_info)
+        precision = len(str(step_size).rstrip("0").split(".")[-1]) if "." in str(step_size) else 0
+        return round(quantity - (quantity % step_size), precision)
+
+    def _get_step_size(self, symbol_info: dict) -> float:
+        for item in symbol_info["filters"]:
+            if item["filterType"] == "LOT_SIZE":
+                return float(item["stepSize"])
+        return 1.0
+
+    async def _calculate_futures_quantity(
+        self, client: AsyncClient, symbol: str, risk_amount: float, symbol_info: dict
     ) -> float:
-        """Convert a USDT risk amount into a valid order quantity for the symbol."""
-        # Get current price
         ticker = await client.futures_symbol_ticker(symbol=symbol)
-        price = float(ticker["price"])
+        return self._quantity_from_price(risk_amount, float(ticker["price"]), symbol_info, symbol)
 
-        # Get symbol info for lot size / precision
-        if not symbol_info:
-            symbol_info = await self._get_symbol_info(client, symbol)
+    async def _calculate_spot_quantity(
+        self, client: AsyncClient, symbol: str, risk_amount: float, symbol_info: dict
+    ) -> float:
+        ticker = await client.get_symbol_ticker(symbol=symbol)
+        return self._quantity_from_price(risk_amount, float(ticker["price"]), symbol_info, symbol)
 
-        # Find step size from LOT_SIZE filter
-        step_size = 1.0
-        for f in symbol_info["filters"]:
-            if f["filterType"] == "LOT_SIZE":
-                step_size = float(f["stepSize"])
-                break
-
-        raw_qty = risk_amount / price
-        # Round down to valid step size
+    def _quantity_from_price(
+        self, risk_amount: float, price: float, symbol_info: dict, symbol: str
+    ) -> float:
+        step_size = self._get_step_size(symbol_info)
+        raw_qty = risk_amount / price if price > 0 else 0
         precision = len(str(step_size).rstrip("0").split(".")[-1]) if "." in str(step_size) else 0
         quantity = round(raw_qty - (raw_qty % step_size), precision)
 
@@ -561,14 +717,56 @@ class BotEngine:
                 f"Calculated quantity is 0 for {symbol} "
                 f"(risk={risk_amount:.2f}, price={price:.2f})"
             )
-
         return quantity
+
+    def _resolve_order_price(self, order: dict, fallback_price: float | None = None) -> float:
+        price = float(order.get("avgPrice", 0) or 0)
+        if price == 0 and order.get("fills"):
+            fills = order["fills"]
+            total_qty = sum(float(fill["qty"]) for fill in fills)
+            if total_qty > 0:
+                price = sum(float(fill["price"]) * float(fill["qty"]) for fill in fills) / total_qty
+        if price == 0 and fallback_price:
+            price = fallback_price
+        return price
+
+    async def _get_free_asset_balance(self, client: AsyncClient, asset: str | None) -> float:
+        if not asset:
+            return 0.0
+        balance = await client.get_asset_balance(asset=asset)
+        if not balance:
+            return 0.0
+        return float(balance.get("free", 0) or 0)
+
+    def _get_balance_from_account_info(self, account_info: dict, asset: str) -> float:
+        for balance in account_info.get("balances", []):
+            if balance.get("asset") == asset:
+                return float(balance.get("free", 0) or 0)
+        return 0.0
+
+    async def _estimate_spot_equity(self, client: AsyncClient, account_info: dict) -> float:
+        total = 0.0
+        for balance in account_info.get("balances", []):
+            asset = balance["asset"]
+            amount = float(balance.get("free", 0) or 0) + float(balance.get("locked", 0) or 0)
+            if amount <= 0:
+                continue
+            if asset == "USDT":
+                total += amount
+                continue
+            try:
+                ticker = await client.get_symbol_ticker(symbol=f"{asset}USDT")
+                total += amount * float(ticker["price"])
+            except Exception:
+                logger.debug("Skipping non-USDT spot valuation for asset %s", asset)
+        return total
 
     async def _record_trade(
         self,
         db: AsyncSession,
         account: ExchangeAccount,
         payload: WebhookPayload,
+        action: str | None = None,
         side: str = "",
         entry_price: float = 0.0,
         quantity: float = 0.0,
@@ -578,12 +776,11 @@ class BotEngine:
         status: str = "FILLED",
         error: str | None = None,
     ):
-        """Write a trade record to the ledger."""
         record = TradeRecord(
             account_id=account.id,
             symbol=payload.symbol.upper(),
             timeframe=payload.timeframe,
-            action=payload.action.upper(),
+            action=action or payload.action.upper(),
             side=side,
             entry_price=entry_price,
             quantity=quantity,
@@ -592,14 +789,12 @@ class BotEngine:
             leverage=leverage,
             status=status,
             error_message=error,
+            market_type=_market_type(account),
         )
         db.add(record)
         await db.commit()
 
-    async def _update_daily_pnl(
-        self, db: AsyncSession, account_id: int, pnl: float
-    ):
-        """Update the daily PnL tracker."""
+    async def _update_daily_pnl(self, db: AsyncSession, account_id: int, pnl: float):
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         result = await db.execute(
             select(DailyPnl).where(
@@ -619,5 +814,4 @@ class BotEngine:
         await db.commit()
 
 
-# Singleton
 bot_engine = BotEngine()

@@ -3,8 +3,11 @@
 
 {% block content %}
 <div style="margin-bottom: 24px;">
-    <h2 style="font-size: 1.5rem; font-weight: 700;">Bot Settings</h2>
-    <p style="color: #9ca3af; font-size: 0.875rem;">Global risk parameters for the Bot Engine</p>
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Bot Settings</h2>
+        <span class="market-pill">Futures + Spot</span>
+    </div>
+    <p style="color: #9ca3af; font-size: 0.875rem;">Global risk parameters and defaults for Futures and Spot accounts</p>
 </div>
 
 <div class="card" style="padding: 24px; max-width: 600px;">
@@ -22,7 +25,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
             <div>
                 <p style="font-weight: 600;">Testnet Mode</p>
-                <p style="font-size: 0.8rem; color: #6b7280;">Trade with fake money on Binance Testnet</p>
+                <p style="font-size: 0.8rem; color: #6b7280;">Trade with fake money on Binance Futures and Spot testnets</p>
                 <p id="testnetWarning" style="font-size: 0.75rem; color: #fca5a5; margin-top: 4px; display: none;">
                     Turning this OFF means the bot will trade with REAL money
                 </p>
@@ -39,9 +42,9 @@
 
         <!-- Leverage Override -->
         <div style="margin-bottom: 20px;">
-            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Leverage Override</label>
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Default Futures Leverage</label>
             <input class="input-field" id="leverageOverride" type="number" min="1" max="125" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Applied to all orders (1x – 125x)</p>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Used for new Futures accounts. Spot accounts are always 1x.</p>
         </div>
 
         <!-- Daily Loss Limit -->
@@ -60,9 +63,9 @@
 
         <!-- Positions Refresh Interval -->
         <div style="margin-bottom: 24px;">
-            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Positions Refresh Interval (seconds)</label>
+            <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Positions & Holdings Refresh Interval (seconds)</label>
             <input class="input-field" id="refreshInterval" type="number" min="3" max="300" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">How often the Open Positions page fetches live data (3–300 seconds)</p>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">How often the Positions & Holdings page fetches live data (3–300 seconds)</p>
         </div>
 
         <!-- Telegram Notifications -->
@@ -111,7 +114,7 @@
         </p>
         <ul style="font-size: 0.85rem; color: #d1d5db; margin-bottom: 20px; padding-left: 20px; list-style: disc;">
             <li style="margin-bottom: 6px;">The bot will execute trades with <strong style="color: #fca5a5;">real money</strong></li>
-            <li style="margin-bottom: 6px;">Make sure your live Binance API keys are configured</li>
+            <li style="margin-bottom: 6px;">Make sure your live Binance Futures and Spot API keys are configured</li>
             <li>Double-check your risk settings before enabling</li>
         </ul>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">

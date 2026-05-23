@@ -99,6 +99,8 @@ async def _process_and_broadcast(payload: WebhookPayload):
             log_status = "PARTIAL"
         else:
             log_status = "SUCCESS"
+        markets = sorted({r.get("market_type") for r in results if r.get("market_type")})
+        market_type = markets[0] if len(markets) == 1 else ("mixed" if markets else None)
 
         async with async_session() as db:
             log_entry = WebhookLog(
@@ -112,6 +114,7 @@ async def _process_and_broadcast(payload: WebhookPayload):
                 accounts_errored=errored,
                 details=json.dumps(results, default=str),
                 execution_ms=round(elapsed_ms, 1),
+                market_type=market_type,
             )
             db.add(log_entry)
             await db.commit()
@@ -142,6 +145,7 @@ async def _process_and_broadcast(payload: WebhookPayload):
                 .where(
                     SymbolMapping.symbol == payload.symbol.upper(),
                     SymbolMapping.timeframe == payload.timeframe,
+                    SymbolMapping.market_type == ExchangeAccount.market_type,
                     ExchangeAccount.is_active == True,
                     ExchangeAccount.futures_enabled == True,
                 )
@@ -174,7 +178,7 @@ async def receive_webhook(payload: WebhookPayload, request: Request, bg: Backgro
 
     logger.info("Webhook received: %s", payload.model_dump())
 
-    if payload.action.upper() not in ("ENTRY", "EXIT", "LONG", "SHORT"):
+    if payload.action.upper() not in ("ENTRY", "EXIT", "LONG", "SHORT", "BUY", "SELL"):
         raise HTTPException(status_code=400, detail="Invalid action")
 
     bg.add_task(_process_and_broadcast, payload)
@@ -211,6 +215,7 @@ async def list_webhook_logs(
             "accounts_errored": log.accounts_errored,
             "details": log.details,
             "execution_ms": log.execution_ms,
+            "market_type": log.market_type,
             "received_at": log.received_at.isoformat() if log.received_at else None,
         }
         for log in logs

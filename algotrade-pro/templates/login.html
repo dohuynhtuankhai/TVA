@@ -23,17 +23,17 @@
 <body>
     <div class="login-card">
         <p class="logo">&#9889; AlgoTrade Pro</p>
-        <p class="subtitle">Sign in to your trading dashboard</p>
+        <p class="subtitle">Sign in to your Futures and Spot trading dashboard</p>
 
         <div class="error" id="errorMsg"></div>
 
         <form onsubmit="handleLogin(event)">
             <div class="field">
-                <label>Username</label>
+                <label for="username">Username</label>
                 <input type="text" id="username" autocomplete="username" required autofocus>
             </div>
             <div class="field">
-                <label>Password</label>
+                <label for="password">Password</label>
                 <input type="password" id="password" autocomplete="current-password" required>
             </div>
             <button type="submit" class="btn" id="loginBtn">Sign In</button>

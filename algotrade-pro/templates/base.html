@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}AlgoTrade Pro{% endblock %}</title>
-    <meta name="description" content="AlgoTrade Pro – Self-hosted trading bot bridging TradingView to Binance Futures">
+    <meta name="description" content="AlgoTrade Pro – Self-hosted trading bot bridging TradingView to Binance Futures and Spot">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⚡</text></svg>">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
@@ -15,6 +15,7 @@
         .badge-red { background-color: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
         .badge-yellow { background-color: #78350f; color: #fcd34d; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
         .badge-blue { background-color: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
+        .market-pill { display: inline-flex; align-items: center; gap: 6px; background: #052e2b; color: #5eead4; border: 1px solid #0f766e; border-radius: 9999px; padding: 3px 10px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
         .stat-card { transition: transform 0.15s; }
         .stat-card:hover { transform: translateY(-2px); }
         .btn-primary { background-color: #2563eb; color: white; padding: 8px 16px; border-radius: 0.5rem; font-weight: 500; cursor: pointer; border: none; }
@@ -55,7 +56,10 @@
         <h1 style="font-size: 1.25rem; font-weight: 700; color: #f9fafb;">
             &#9889; AlgoTrade Pro
         </h1>
-        <span style="font-size: 0.75rem; color: #6b7280;">V1 Engine</span>
+        <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
+            <span class="market-pill">Futures + Spot</span>
+            <span style="font-size: 0.75rem; color: #6b7280;">V1 Engine</span>
+        </div>
     </div>
 
     <nav style="display: flex; flex-direction: column; gap: 4px;">
@@ -69,7 +73,7 @@
         </a>
         <a href="/positions" class="nav-link {% if page == 'positions' %}active{% endif %}">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-            Open Positions
+            Positions & Holdings
         </a>
         <a href="/trades" class="nav-link {% if page == 'trades' %}active{% endif %}">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
@@ -98,7 +102,7 @@
 
 <!-- Testnet Banner (loaded dynamically) -->
 <div id="testnetBanner" style="display: none; position: fixed; top: 0; left: 250px; right: 0; background: linear-gradient(90deg, #78350f, #92400e); color: #fcd34d; text-align: center; padding: 6px; font-size: 0.8rem; font-weight: 600; z-index: 50; letter-spacing: 0.05em;">
-    TESTNET MODE — Trading with fake money
+    TESTNET MODE — Futures and Spot trading with fake money
 </div>
 
 <!-- Main Content -->

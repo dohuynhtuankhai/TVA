@@ -2,12 +2,13 @@
 
 import logging
 import sys
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from jinja2 import Environment, FileSystemLoader
-from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from auth import validate_session
 from config import settings
@@ -19,60 +20,115 @@ logging.basicConfig(
     format="%(asctime)s  %(name)-28s  %(levelname)-5s  %(message)s",
     stream=sys.stdout,
 )
+
+
+class _WebSocketNoiseFilter(logging.Filter):
+    """Suppress repetitive WebSocket lifecycle logs from the dashboard stream."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        message = record.getMessage()
+        return not (
+            "WebSocket /ws" in message
+            or message in {"connection open", "connection closed"}
+        )
+
+
+_ws_noise_filter = _WebSocketNoiseFilter()
+for _logger_name in (
+    "uvicorn.error",
+    "uvicorn.access",
+    "uvicorn.protocols.websockets",
+    "uvicorn.protocols.websockets.websockets_impl",
+    "websockets.server",
+):
+    logging.getLogger(_logger_name).addFilter(_ws_noise_filter)
+
+# Keep the console focused on app logs and errors instead of every HTTP request.
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
 logger = logging.getLogger("algotrade")
 
 
-# ── Auth middleware ──────────────────────────────────────────────────────────
+# ── Auth middleware (raw ASGI — supports WebSocket) ─────────────────────────
 
 # Paths that don't require authentication
-PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/webhook"}
+PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/webhook", "/ws"}
 PUBLIC_PREFIXES = ("/static/",)
 
 COOKIE_NAME = "algotrade_session"
 
 
-class AuthMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        path = request.url.path
+class AuthMiddleware:
+    """Raw ASGI middleware so WebSocket connections pass through cleanly."""
 
-        # Allow public paths through
+    def __init__(self, app: ASGIApp):
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        # Only check HTTP requests — let WebSocket through (it does its own auth)
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope["path"]
+
+        # Allow public paths
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Check session cookie
-        session_id = request.cookies.get(COOKIE_NAME)
+        # Parse session cookie from headers
+        session_id = None
+        for header_name, header_value in scope.get("headers", []):
+            if header_name == b"cookie":
+                for part in header_value.decode().split(";"):
+                    part = part.strip()
+                    if part.startswith(f"{COOKIE_NAME}="):
+                        session_id = part[len(COOKIE_NAME) + 1:]
+                        break
+                break
+
         if validate_session(session_id):
-            return await call_next(request)
+            await self.app(scope, receive, send)
+            return
 
-        # Not authenticated — redirect pages, return 401 for API
+        # Not authenticated
         if path.startswith("/api/"):
-            from fastapi.responses import JSONResponse
-            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+            from starlette.responses import JSONResponse
+            response = JSONResponse({"detail": "Not authenticated"}, status_code=401)
         else:
-            return RedirectResponse("/login", status_code=302)
+            response = RedirectResponse("/login", status_code=302)
+
+        await response(scope, receive, send)
+
+
+# ── Lifespan ────────────────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app):
+    """Startup / shutdown lifecycle hook."""
+    logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
+    await init_db()
+    logger.info("Database initialised")
+    yield
+    logger.info("Shutting down %s", settings.APP_NAME)
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
-app = FastAPI(
+_app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
+    lifespan=lifespan,
 )
 
-app.add_middleware(AuthMiddleware)
+# Wrap with raw ASGI auth middleware (supports WebSocket)
+app = AuthMiddleware(_app)
 
 # Static files & templates
-app.mount("/static", StaticFiles(directory="static"), name="static")
+_app.mount("/static", StaticFiles(directory="static"), name="static")
 jinja_env = Environment(loader=FileSystemLoader("templates"), autoescape=True)
-
-# ── Startup ──────────────────────────────────────────────────────────────────
-
-@app.on_event("startup")
-async def startup():
-    logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
-    await init_db()
-    logger.info("Database initialised")
 
 
 # ── Register API routers ────────────────────────────────────────────────────
@@ -85,18 +141,18 @@ from routes.trades import router as trades_router      # noqa: E402
 from routes.dashboard import router as dashboard_router  # noqa: E402
 from routes.positions import router as positions_router  # noqa: E402
 
-app.include_router(auth_router)
-app.include_router(webhook_router)
-app.include_router(accounts_router)
-app.include_router(settings_router)
-app.include_router(trades_router)
-app.include_router(dashboard_router)
-app.include_router(positions_router)
+_app.include_router(auth_router)
+_app.include_router(webhook_router)
+_app.include_router(accounts_router)
+_app.include_router(settings_router)
+_app.include_router(trades_router)
+_app.include_router(dashboard_router)
+_app.include_router(positions_router)
 
 
 # ── Page routes (serve Jinja2 templates) ─────────────────────────────────────
 
-@app.get("/login", response_class=HTMLResponse)
+@_app.get("/login", response_class=HTMLResponse)
 async def page_login(request: Request):
     # If already logged in, redirect to dashboard
     session_id = request.cookies.get(COOKIE_NAME)
@@ -106,37 +162,37 @@ async def page_login(request: Request):
     return HTMLResponse(template.render())
 
 
-@app.get("/", response_class=HTMLResponse)
+@_app.get("/", response_class=HTMLResponse)
 async def page_dashboard(request: Request):
     template = jinja_env.get_template("dashboard.html")
     return HTMLResponse(template.render(page="dashboard"))
 
 
-@app.get("/accounts", response_class=HTMLResponse)
+@_app.get("/accounts", response_class=HTMLResponse)
 async def page_accounts(request: Request):
     template = jinja_env.get_template("accounts.html")
     return HTMLResponse(template.render(page="accounts"))
 
 
-@app.get("/trades", response_class=HTMLResponse)
+@_app.get("/trades", response_class=HTMLResponse)
 async def page_trades(request: Request):
     template = jinja_env.get_template("trades.html")
     return HTMLResponse(template.render(page="trades"))
 
 
-@app.get("/positions", response_class=HTMLResponse)
+@_app.get("/positions", response_class=HTMLResponse)
 async def page_positions(request: Request):
     template = jinja_env.get_template("positions.html")
     return HTMLResponse(template.render(page="positions"))
 
 
-@app.get("/webhook-logs", response_class=HTMLResponse)
+@_app.get("/webhook-logs", response_class=HTMLResponse)
 async def page_webhook_logs(request: Request):
     template = jinja_env.get_template("webhook_logs.html")
     return HTMLResponse(template.render(page="webhook_logs"))
 
 
-@app.get("/settings", response_class=HTMLResponse)
+@_app.get("/settings", response_class=HTMLResponse)
 async def page_settings(request: Request):
     template = jinja_env.get_template("settings.html")
     return HTMLResponse(template.render(page="settings"))
@@ -144,7 +200,7 @@ async def page_settings(request: Request):
 
 # ── Health check ─────────────────────────────────────────────────────────────
 
-@app.get("/api/health")
+@_app.get("/api/health")
 async def health():
     from bot_engine import get_testnet_mode
     testnet = await get_testnet_mode()
@@ -166,4 +222,5 @@ if __name__ == "__main__":
         host=settings.HOST,
         port=settings.PORT,
         reload=settings.DEBUG,
+        access_log=False,
     )
