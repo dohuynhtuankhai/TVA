@@ -137,7 +137,7 @@
             }
             document.getElementById('logsBody').innerHTML = html;
         } catch (e) {
-            showToast('Failed to load webhook logs', 'error');
+            console.error('Failed to load webhook logs:', e);
         }
     }
 
