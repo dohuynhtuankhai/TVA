@@ -30,8 +30,9 @@ class ExchangeAccount(Base):
     api_key = Column(String(256), nullable=False)
     api_secret_encrypted = Column(Text, nullable=False)  # Fernet ciphertext
     is_active = Column(Boolean, default=True)
-    futures_enabled = Column(Boolean, default=False)
-    market_type = Column(String(10), default="futures")  # "futures" or "spot"
+    futures_enabled = Column(Boolean, default=False)  # API key verified for Futures
+    spot_enabled = Column(Boolean, default=False)     # API key verified for Spot
+    market_type = Column(String(10), nullable=True)   # LEGACY: backfill source only, no longer authoritative
 
     # ── Per-account trading settings ─────────────────────────────────
     trading_size_type = Column(String(10), default="percent")  # "percent" or "fixed"

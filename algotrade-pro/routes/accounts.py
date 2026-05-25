@@ -8,9 +8,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot_engine import create_binance_client
 from database import get_db
-from encryption import decrypt_secret, encrypt_secret
+from encryption import encrypt_secret
+from market_adapters import create_market_adapter, normalize_market_type
 from models import BotSettings, ExchangeAccount, SymbolMapping
 from routes.webhook import normalize_timeframe
 from websocket_manager import ws_manager
@@ -34,8 +34,8 @@ def _to_response(acct: ExchangeAccount) -> AccountResponse:
         name=acct.name,
         api_key_preview="…" + acct.api_key[-4:],
         is_active=acct.is_active,
-        futures_enabled=acct.futures_enabled,
-        market_type=acct.market_type or "futures",
+        futures_enabled=bool(acct.futures_enabled),
+        spot_enabled=bool(acct.spot_enabled),
         trading_size_type=acct.trading_size_type,
         trading_size_value=acct.trading_size_value,
         leverage=acct.leverage,
@@ -60,49 +60,34 @@ async def _get_defaults(db: AsyncSession) -> BotSettings:
     return settings
 
 
-async def _verify_binance_keys(api_key: str, api_secret: str, market_type: str = "futures") -> bool:
-    """Ping Binance to check if the requested market is tradable.
-
-    On testnet, permissions endpoints are inconsistent, so authenticated
-    account calls are used as the source of truth.
-    """
+async def _verify_market(api_key: str, api_secret: str, market: str) -> bool:
+    """Verify one market for the given API key/secret. Returns True if usable."""
     from bot_engine import get_testnet_mode
 
-    client = None
+    adapter = None
     is_testnet = await get_testnet_mode()
-    market = (market_type or "futures").lower()
-
+    market = normalize_market_type(market)
     try:
-        client = await create_binance_client(api_key, api_secret, testnet=is_testnet, market_type=market)
-
-        if is_testnet:
-            if market == "spot":
-                await client.get_account()
-                logger.info("Testnet keys verified via Spot account")
-            else:
-                await client.futures_account()
-                logger.info("Testnet keys verified via Futures account")
-            return True
-
-        if market == "spot":
-            perms = await client.get_account_api_permissions()
-            if perms.get("enableSpotAndMarginTrading", False):
-                return True
-            await client.get_account()
-            return True
-
-        perms = await client.get_account_api_permissions()
-        return perms.get("enableFutures", False)
-
+        adapter = await create_market_adapter(
+            api_key, api_secret, market_type=market, testnet=is_testnet,
+        )
+        return await adapter.verify_credentials(is_testnet)
     except BinanceAPIException as e:
-        logger.warning("Binance key verification failed: %s", e.message)
+        logger.info("%s verification failed: %s", market, e.message)
         return False
     except Exception as e:
-        logger.warning("Binance key verification error: %s", str(e))
+        logger.info("%s verification error: %s", market, str(e))
         return False
     finally:
-        if client:
-            await client.close_connection()
+        if adapter is not None:
+            await adapter.close()
+
+
+async def _verify_both_markets(api_key: str, api_secret: str) -> tuple[bool, bool]:
+    """Verify API key against both Futures and Spot. Returns (futures_ok, spot_ok)."""
+    futures_ok = await _verify_market(api_key, api_secret, "futures")
+    spot_ok = await _verify_market(api_key, api_secret, "spot")
+    return futures_ok, spot_ok
 
 
 # ── CRUD ─────────────────────────────────────────────────────────────────────
@@ -122,19 +107,24 @@ async def create_account(
     # Load defaults from BotSettings
     defaults = await _get_defaults(db)
 
-    market_type = body.market_type or "futures"
-    trading_enabled = await _verify_binance_keys(body.api_key, body.api_secret, market_type)
+    futures_ok, spot_ok = await _verify_both_markets(body.api_key, body.api_secret)
+    if not (futures_ok or spot_ok):
+        raise HTTPException(
+            400,
+            "API key/secret could not be verified against either Binance Futures or Spot. "
+            "Check permissions and try again.",
+        )
 
     acct = ExchangeAccount(
         name=body.name,
         api_key=body.api_key,
         api_secret_encrypted=encrypt_secret(body.api_secret),
-        futures_enabled=trading_enabled,
-        market_type=market_type,
-        # Use provided values or fall back to BotSettings defaults
+        futures_enabled=futures_ok,
+        spot_enabled=spot_ok,
+        market_type=None,  # legacy column unused for new accounts
         trading_size_type=body.trading_size_type or defaults.default_trading_size_type,
         trading_size_value=body.trading_size_value if body.trading_size_value is not None else defaults.risk_per_trade,
-        leverage=1 if market_type == "spot" else (body.leverage if body.leverage is not None else defaults.leverage_override),
+        leverage=body.leverage if body.leverage is not None else defaults.leverage_override,
         stoploss_percent=body.stoploss_percent if body.stoploss_percent is not None else defaults.default_stoploss_percent,
         trail_activation_pct=body.trail_activation_pct if body.trail_activation_pct is not None else defaults.default_trail_activation_pct,
         trail_callback_pct=body.trail_callback_pct if body.trail_callback_pct is not None else defaults.default_trail_callback_pct,
@@ -145,14 +135,14 @@ async def create_account(
     await db.refresh(acct)
 
     logger.info(
-        "Account '%s' created (market=%s, enabled=%s, size=%s %s, lev=%sx, sl=%s%%)",
-        acct.name, acct.market_type, acct.futures_enabled,
+        "Account '%s' created (futures=%s, spot=%s, size=%s %s, lev=%sx, sl=%s%%)",
+        acct.name, acct.futures_enabled, acct.spot_enabled,
         acct.trading_size_value, acct.trading_size_type,
         acct.leverage, acct.stoploss_percent,
     )
 
-    # Auto-sync trade history from Binance in background
-    if trading_enabled:
+    # Auto-sync trade history from Binance in background (covers any enabled market)
+    if futures_ok or spot_ok:
         bg.add_task(_auto_sync_account, acct.id)
 
     await ws_manager.broadcast("account_added", {"account_id": acct.id, "name": acct.name})
@@ -208,18 +198,14 @@ async def update_account(
         acct.api_secret_encrypted = encrypt_secret(body.api_secret)
         secret = body.api_secret
         key = body.api_key or acct.api_key
-        acct.futures_enabled = await _verify_binance_keys(key, secret, acct.market_type or "futures")
+        acct.futures_enabled, acct.spot_enabled = await _verify_both_markets(key, secret)
     if body.is_active is not None:
         acct.is_active = body.is_active
-    if body.market_type is not None:
-        acct.market_type = body.market_type
-        if body.market_type == "spot":
-            acct.leverage = 1
     if body.trading_size_type is not None:
         acct.trading_size_type = body.trading_size_type
     if body.trading_size_value is not None:
         acct.trading_size_value = body.trading_size_value
-    if body.leverage is not None and (acct.market_type or "futures") != "spot":
+    if body.leverage is not None:
         acct.leverage = body.leverage
     if body.stoploss_percent is not None:
         acct.stoploss_percent = body.stoploss_percent
@@ -269,9 +255,17 @@ async def create_mapping(
     account = account_result.scalar_one_or_none()
     if not account:
         raise HTTPException(404, "Account not found")
-    market_type = account.market_type or "futures"
+    market_type = normalize_market_type(body.market_type)
+    if market_type == "spot" and not account.spot_enabled:
+        raise HTTPException(
+            400, "This account is not verified for Binance Spot."
+        )
+    if market_type == "futures" and not account.futures_enabled:
+        raise HTTPException(
+            400, "This account is not verified for Binance Futures."
+        )
 
-    # Validate symbol exists on the account's Binance market
+    # Validate symbol exists on the chosen Binance market
     try:
         import aiohttp
         from bot_engine import get_testnet_mode

@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from bot_engine import BotEngine, _market_type
+from market_adapters import compute_spot_avg_cost
 from routes.webhook import _clean_symbol, normalize_timeframe
 from schemas import AccountCreate, WebhookPayload
 
@@ -116,34 +117,55 @@ class TestMarketTypeHelper:
 # Schemas — AccountCreate market_type pattern (PRD 2.1)
 # ──────────────────────────────────────────────────────────────────────────
 
-class TestAccountCreateMarketType:
-    def test_accepts_futures(self):
+class TestAccountCreateNoMarketType:
+    """V2: accounts cover both Futures and Spot. Market is chosen per mapping."""
+
+    def test_schema_has_no_market_type_field(self):
+        assert "market_type" not in AccountCreate.model_fields
+
+    def test_create_without_market_type(self):
         a = AccountCreate(
             name="acc", api_key="abcdefghij", api_secret="abcdefghij",
-            market_type="futures",
         )
-        assert a.market_type == "futures"
+        assert a.name == "acc"
+
+    def test_extra_market_type_ignored(self):
+        # Pydantic default: extra ignored
+        a = AccountCreate(
+            name="acc", api_key="abcdefghij", api_secret="abcdefghij",
+            market_type="margin",  # ignored, not raised
+        )
+        assert not hasattr(a, "market_type")
+
+
+class TestSymbolMappingCreateMarketType:
+    """Mapping carries its own market_type (account no longer pins one)."""
+
+    def test_accepts_futures(self):
+        from schemas import SymbolMappingCreate
+        m = SymbolMappingCreate(
+            symbol="BTCUSDT", timeframe="5m", account_id=1, market_type="futures",
+        )
+        assert m.market_type == "futures"
 
     def test_accepts_spot(self):
-        a = AccountCreate(
-            name="acc", api_key="abcdefghij", api_secret="abcdefghij",
-            market_type="spot",
+        from schemas import SymbolMappingCreate
+        m = SymbolMappingCreate(
+            symbol="BTCUSDT", timeframe="5m", account_id=1, market_type="spot",
         )
-        assert a.market_type == "spot"
+        assert m.market_type == "spot"
 
-    def test_rejects_unknown_market_type(self):
+    def test_market_type_required(self):
+        from schemas import SymbolMappingCreate
         with pytest.raises(ValidationError):
-            AccountCreate(
-                name="acc", api_key="abcdefghij", api_secret="abcdefghij",
-                market_type="margin",
-            )
+            SymbolMappingCreate(symbol="BTCUSDT", timeframe="5m", account_id=1)
 
-    def test_market_type_default_futures(self):
-        """PRD: Existing accounts default to Futures."""
-        a = AccountCreate(
-            name="acc", api_key="abcdefghij", api_secret="abcdefghij",
-        )
-        assert a.market_type == "futures"
+    def test_rejects_unknown(self):
+        from schemas import SymbolMappingCreate
+        with pytest.raises(ValidationError):
+            SymbolMappingCreate(
+                symbol="BTCUSDT", timeframe="5m", account_id=1, market_type="margin",
+            )
 
 
 # ──────────────────────────────────────────────────────────────────────────
@@ -287,37 +309,122 @@ class TestEstimateSpotEquity:
 # ──────────────────────────────────────────────────────────────────────────
 
 class TestExecuteForAccountDispatch:
-    async def test_routes_spot_account_to_spot_executor(self, engine, monkeypatch):
-        """PRD 2.4: Spot Execution uses Binance Spot endpoints, Futures uses Futures."""
-        calls = []
+    async def test_routes_mapping_market_to_correct_adapter(self, engine, monkeypatch):
+        """V2: mapping.market_type drives which adapter is selected; the same account
+        can be invoked for either market."""
+        from market_adapters import FuturesAdapter, SpotAdapter
 
-        async def fake_spot(db, account, payload, bot_settings):
-            calls.append("spot")
-            return {"status": "FILLED", "market_type": "spot"}
+        seen_markets: list[str] = []
 
-        async def fake_futures(db, account, payload, bot_settings):
-            calls.append("futures")
-            return {"status": "FILLED", "market_type": "futures"}
+        async def fake_create_market_adapter(api_key, api_secret, market_type, testnet=None):
+            seen_markets.append(market_type)
+            adapter_cls = SpotAdapter if market_type == "spot" else FuturesAdapter
+            client = MagicMock()
+            client.close_connection = AsyncMock()
+            return adapter_cls(client)
 
-        monkeypatch.setattr(engine, "_execute_spot_for_account", fake_spot)
-        monkeypatch.setattr(engine, "_execute_futures_for_account", fake_futures)
+        async def fake_handle_entry(db, adapter, account, payload, action):
+            return {"status": "FILLED", "market_type": adapter.market_type}
 
-        # Avoid touching the real DB
+        async def fake_handle_exit(db, adapter, account, payload):
+            return {"status": "CLOSED", "market_type": adapter.market_type}
+
+        async def fake_check_risk(db, account, bot_settings):
+            return None
+
+        monkeypatch.setattr("bot_engine.create_market_adapter", fake_create_market_adapter)
+        monkeypatch.setattr("bot_engine.decrypt_secret", lambda _: "secret")
+        monkeypatch.setattr(engine, "_handle_entry", fake_handle_entry)
+        monkeypatch.setattr(engine, "_handle_exit", fake_handle_exit)
+        monkeypatch.setattr(engine, "_check_risk_limits", fake_check_risk)
+
         from contextlib import asynccontextmanager
+
         @asynccontextmanager
         async def fake_session():
             yield MagicMock()
+
         monkeypatch.setattr("bot_engine.async_session", fake_session)
 
-        spot_acct = SimpleNamespace(market_type="spot", name="spot-acc")
-        fut_acct = SimpleNamespace(market_type="futures", name="fut-acc")
-        legacy_acct = SimpleNamespace(market_type=None, name="legacy")  # PRD backcompat
+        # One dual-enabled account, called twice with different mapping markets.
+        acct = SimpleNamespace(
+            name="dual", futures_enabled=True, spot_enabled=True,
+            api_key="k", api_secret_encrypted="x",
+        )
 
         payload = WebhookPayload(symbol="BTCUSDT", action="LONG", timeframe="5m")
         bot_settings = SimpleNamespace()
 
-        await engine._execute_for_account(spot_acct, payload, bot_settings)
-        await engine._execute_for_account(fut_acct, payload, bot_settings)
-        await engine._execute_for_account(legacy_acct, payload, bot_settings)
+        r_spot = await engine._execute_for_account(acct, "spot", payload, bot_settings)
+        r_fut = await engine._execute_for_account(acct, "futures", payload, bot_settings)
+        r_legacy = await engine._execute_for_account(acct, None, payload, bot_settings)
 
-        assert calls == ["spot", "futures", "futures"]
+        assert seen_markets == ["spot", "futures", "futures"]
+        assert r_spot["market_type"] == "spot"
+        assert r_fut["market_type"] == "futures"
+        assert r_legacy["market_type"] == "futures"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Spot cost-basis — weighted-avg buy price from local trade ledger
+# ──────────────────────────────────────────────────────────────────────────
+
+class TestComputeSpotAvgCost:
+    def test_empty_returns_zero(self):
+        assert compute_spot_avg_cost([]) == (0.0, 0.0)
+
+    def test_single_buy(self):
+        trades = [{"action": "BUY", "entry_price": 50000, "quantity": 0.1}]
+        avg, qty = compute_spot_avg_cost(trades)
+        assert avg == 50000
+        assert qty == 0.1
+
+    def test_two_buys_weighted_avg(self):
+        # 0.1 @ 50000 + 0.1 @ 60000 → avg 55000, qty 0.2
+        trades = [
+            {"action": "BUY", "entry_price": 50000, "quantity": 0.1},
+            {"action": "BUY", "entry_price": 60000, "quantity": 0.1},
+        ]
+        avg, qty = compute_spot_avg_cost(trades)
+        assert avg == pytest.approx(55000)
+        assert qty == pytest.approx(0.2)
+
+    def test_partial_sell_preserves_avg(self):
+        # buy 0.2 @ 55000, sell 0.05 → 0.15 left at avg 55000
+        trades = [
+            {"action": "BUY", "entry_price": 50000, "quantity": 0.1},
+            {"action": "BUY", "entry_price": 60000, "quantity": 0.1},
+            {"action": "SELL", "entry_price": 58000, "quantity": 0.05},
+        ]
+        avg, qty = compute_spot_avg_cost(trades)
+        assert avg == pytest.approx(55000)
+        assert qty == pytest.approx(0.15)
+
+    def test_full_sell_resets_cost_basis(self):
+        # buy 0.1 @ 50000, full sell, then buy 0.05 @ 70000 → avg 70000
+        trades = [
+            {"action": "BUY", "entry_price": 50000, "quantity": 0.1},
+            {"action": "SELL", "entry_price": 60000, "quantity": 0.1},
+            {"action": "BUY", "entry_price": 70000, "quantity": 0.05},
+        ]
+        avg, qty = compute_spot_avg_cost(trades)
+        assert avg == pytest.approx(70000)
+        assert qty == pytest.approx(0.05)
+
+    def test_exit_treated_as_sell(self):
+        # EXIT alias of SELL — full liquidation
+        trades = [
+            {"action": "BUY", "entry_price": 50000, "quantity": 0.1},
+            {"action": "EXIT", "entry_price": 55000, "quantity": 0.1},
+        ]
+        assert compute_spot_avg_cost(trades) == (0.0, 0.0)
+
+    def test_skips_invalid_rows(self):
+        trades = [
+            {"action": "BUY", "entry_price": 0, "quantity": 1},      # zero price
+            {"action": "BUY", "entry_price": 100, "quantity": 0},    # zero qty
+            {"action": "BUY", "entry_price": 100, "quantity": 1},    # valid
+        ]
+        avg, qty = compute_spot_avg_cost(trades)
+        assert avg == 100
+        assert qty == 1

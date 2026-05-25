@@ -1,34 +1,34 @@
 Product Requirements Document (PRD)
-Product Name: AlgoTrade Pro Engine - Futures + Spot Edition (V1)
+Product Name: AlgoTrade Pro Engine - Futures + Spot Edition (V2)
 Target User: Algorithmic traders managing multiple Binance Futures and Binance Spot accounts using TradingView strategies.
 
 1. Product Overview
-AlgoTrade Pro is a local, self-hosted SaaS application that bridges TradingView chart algorithms to Binance accounts. The original Binance Futures workflow remains the core behavior. Spot Trading is an additional feature that can run alongside Futures without replacing it.
-
-The product must make Futures and Spot visually distinct across the UI. Users must always know whether an account, mapping, trade, position, holding, webhook result, or setting belongs to Futures or Spot.
+AlgoTrade Pro is a local, self-hosted SaaS application that bridges TradingView chart algorithms to Binance accounts. A single Binance account (one API key/secret) can trade both Futures and Spot from the same configuration row. The product makes Futures and Spot visually distinct everywhere a market choice matters, but never forces the trader to register the same key twice.
 
 2. Core Components
 
 2.1. The Web Dashboard (UI)
 The control center for the trader.
-* Market Identity: The sidebar and page headings show "Futures + Spot". Individual rows/cards show either "Futures" or "Spot" badges.
-* Real-Time Data: Displays aggregated account equity/wallet balance, available capital, and utilization/deployed percentage across all active Futures and Spot accounts.
-  - Futures accounts use walletBalance, availableMargin, and margin utilization from Binance Futures.
-  - Spot accounts use estimated Spot equity, available USDT, and deployed capital.
-* Account Management: Users can add, edit, and delete Binance API credentials. Each account has market_type = "futures" or "spot".
-  - Existing accounts default to Futures for backward compatibility.
-  - Futures accounts keep leverage, LONG/SHORT/EXIT behavior, stoploss, trailing stop, and position management.
-  - Spot accounts are 1x only and use BUY/SELL inventory behavior.
-* Symbol Mappings: Mappings inherit the account market type and validate symbols against the correct Binance market.
-* Positions & Holdings: One page shows Futures open positions and Spot holdings together.
+* Market Identity: Sidebar and page headings show "Futures + Spot". Each account card carries two verification badges, "Futures ✓" and "Spot ✓" (or ✕ when that market is not authorized for the key). Position/holding/trade rows always show a per-row "Futures" or "Spot" badge.
+* Real-Time Data: The dashboard fetches one balance snapshot per (account, enabled market) pair in parallel.
+  - Futures snapshot uses walletBalance, availableMargin, and margin utilization from Binance Futures.
+  - Spot snapshot uses estimated Spot equity (USDT + non-USDT × USDT ticker price), available USDT, and deployed capital.
+  - An account with both markets enabled produces two snapshots, one labelled Futures and one labelled Spot.
+* Account Management: Users add, edit, and delete Binance API credentials. No "market type" is chosen at account creation.
+  - The backend verifies the key against Binance Futures and Binance Spot independently. Success on either market is required; success on both flips both badges to ✓.
+  - One trading-settings row per account is shared between markets. Futures uses `leverage` from settings; Spot always runs at 1x regardless of the stored leverage.
+  - LONG/SHORT/EXIT semantics apply to Futures. BUY/SELL/EXIT semantics apply to Spot. Both markets honour stoploss; trailing stop is Futures-only.
+* Symbol Mappings: Each mapping carries its own `market_type`. The user picks the market when creating the mapping; the dropdown lists only markets the chosen account is verified for. Symbols are validated against Binance Futures exchangeInfo or Binance Spot exchangeInfo according to that selection.
+* Positions & Holdings: One page lists Futures open positions and Spot holdings together.
   - Futures rows show LONG/SHORT, size, entry price, mark price, notional, leverage, unrealized P&L, and P&L %.
-  - Spot rows show HOLD, held/free/locked quantity, last price, estimated value, Spot 1x, and P&L placeholder.
+  - Spot rows show HOLD, held/free/locked quantity, last price, estimated value, "Spot 1x", weighted-average buy price (derived from the local trade ledger), unrealized P&L = (mark − avg) × held, and P&L %.
 * Order History: Tracks both Futures and Spot trades with a Market column.
   - Futures actions: LONG, SHORT, EXIT.
   - Spot actions: BUY, SELL, EXIT.
   - Futures rows show leverage. Spot rows show Spot 1x.
 * Webhook Logs: Shows market result as Futures, Spot, or Mixed when one signal routes to both market types.
 * Testnet Mode: One toggle controls Binance Futures Testnet and Binance Spot Testnet. Banner reads "TESTNET MODE - Futures and Spot trading with fake money".
+* Numeric Formatting: All price, quantity, USDT, and P&L values render through magnitude-aware formatters (`fmtPrice`, `fmtQty`, `fmtUsdt`) so low-price coins (e.g. 0.00008489) display with full precision instead of being truncated to zero by default locale settings.
 
 2.2. TradingView Strategy
 The TradingView strategy remains the signal source.
@@ -40,85 +40,97 @@ The TradingView strategy remains the signal source.
 * Spot mapping:
   - LONG, ENTRY, or BUY places a Spot market BUY.
   - SHORT, EXIT, or SELL sells the owned Spot base asset.
-* The same symbol/timeframe can route to both Futures and Spot if the user creates mappings on accounts of both market types.
+* The same symbol/timeframe can route to both Futures and Spot when the user creates a mapping per market on the same account (or on different accounts).
 
 2.3. API Server
 * Signal Ingestion: /api/webhook accepts TradingView JSON payloads.
 * Symbol Normalization: Strips exchange prefixes, .P suffixes, and PERP suffixes before routing.
 * Timeframe Normalization: Converts user-friendly mappings like 5m, 1h, 4h, and 1D to TradingView formats.
-* Market-Aware Routing: The API resolves account mappings by symbol, timeframe, and account market type.
-* Market-Aware Validation: Futures mappings validate against Binance Futures exchangeInfo; Spot mappings validate against Binance Spot exchangeInfo.
+* Market-Aware Routing: The API resolves (account, market) pairs by joining SymbolMapping on symbol+timeframe and filtering each side by the per-market enable flag — `mapping.market_type == 'futures' AND account.futures_enabled` OR `mapping.market_type == 'spot' AND account.spot_enabled`.
+* Market-Aware Validation: Futures mappings validate against Binance Futures exchangeInfo; Spot mappings validate against Binance Spot exchangeInfo. The chosen market comes from the mapping create request, not from the account.
 
 2.4. Bot Engine
-The Bot Engine is market-aware.
+The Bot Engine is market-aware via a MarketAdapter strategy pattern.
+* MarketAdapter ABC has two implementations: FuturesAdapter and SpotAdapter. The engine resolves which adapter to instantiate from `mapping.market_type`, not from the account.
 * Shared Risk Evaluation: bot_active, daily_loss_limit, and max_drawdown apply before both Futures and Spot trades.
-* Futures Execution:
+* Futures Execution (FuturesAdapter):
   - Uses Binance Futures account, exchange info, ticker, leverage, position, and order endpoints.
   - Supports LONG, SHORT, EXIT, single/multi trade mode, leverage, stoploss, and trailing stop.
   - Single mode closes an existing Futures position on the symbol before a new entry.
   - Uses reduceOnly=True when force-closing or exiting positions.
-* Spot Execution:
+* Spot Execution (SpotAdapter):
   - Uses Binance Spot account, exchange info, ticker, and order endpoints.
   - BUY/ENTRY/LONG places a Spot market BUY using fixed USDT or percent of estimated Spot equity, capped by available USDT.
   - SELL/EXIT/SHORT sells the available base asset.
-  - Spot is always 1x. Futures leverage settings do not apply.
+  - Spot is always 1x. The shared `leverage` setting is ignored at execution time.
   - Single mode blocks duplicate buys while already holding the base asset. Multi mode allows scale-in buys.
-  - Stoploss attempts a Spot STOP_LOSS_LIMIT sell. Trailing stop is Futures-only and ignored for Spot with a warning.
-* Ledger Recording: Trade records include market_type so history can distinguish Futures from Spot.
+  - Stoploss attempts a Spot STOP_LOSS_LIMIT sell. Trailing stop is Futures-only; the engine logs a warning if configured for Spot.
+* Ledger Recording: Trade records include market_type so history can distinguish Futures from Spot. The market_type recorded comes from the mapping, not the account.
+* Spot Cost Basis: When the Positions tab loads, SpotAdapter walks the local TradeRecord ledger for each (account, symbol) to compute weighted-average buy price. A full SELL or EXIT resets the basis; a partial SELL preserves the running average. Avg price displays as "—" when no buys are recorded locally; run /api/trades/sync to backfill from Binance.
 
 2.5. Per-Account Trading Settings
-Each account has:
-* market_type: "futures" or "spot".
+Each account has a single shared settings row:
 * trading_size_type: "percent" or "fixed".
 * trading_size_value: percentage or fixed USDT amount.
-* leverage: Futures leverage 1x-125x. Forced to 1 for Spot.
+* leverage: Futures leverage 1x-125x. The SpotAdapter ignores this value and uses 1x.
 * stoploss_percent: Futures STOP_MARKET or Spot STOP_LOSS_LIMIT behavior.
 * trail_activation_pct and trail_callback_pct: Futures trailing-stop controls only.
 * trade_mode: Futures single/multi position behavior; Spot single/multi scale-in behavior.
 
+Verification flags (set automatically at account create/update):
+* futures_enabled: True when the API key was verified against Binance Futures.
+* spot_enabled: True when the API key was verified against Binance Spot.
+
 2.6. Bot Settings Defaults
 * Global defaults continue to seed new accounts.
-* default Futures leverage remains configurable.
-* Spot accounts ignore leverage defaults and use 1x.
+* Default `leverage_override` seeds Futures leverage on new accounts; Spot always uses 1x at runtime.
 * Existing accounts are not retroactively changed when defaults are updated.
 
 3. Functional User Flows
 
 3.1. Adding an Account
-1. User chooses Market Type: Futures or Spot.
-2. User enters Name, API Key, and API Secret.
-3. Backend verifies credentials against the selected market.
-4. Account is saved encrypted, with a market-specific enabled badge.
-5. Account settings are created from global defaults; Spot leverage is forced to 1.
+1. User enters Name, API Key, and API Secret. No market-type choice.
+2. Backend verifies the key against Binance Futures and Binance Spot independently.
+3. If neither market verifies, the request is rejected with a clear error.
+4. If at least one market verifies, the account is saved encrypted. `futures_enabled` and `spot_enabled` reflect the per-market result.
+5. Account settings are created from global defaults. `leverage` stores the Futures value; Spot is implicitly 1x.
+6. Background job auto-syncs trade history from Binance for every enabled market.
 
 3.2. Adding a Symbol Mapping
-1. User adds a mapping under a specific account.
-2. Backend validates the symbol against that account's market.
-3. Mapping stores the inherited market_type.
+1. User opens the mapping modal under a specific account. The market dropdown lists only markets the account is verified for.
+2. User selects market (Futures or Spot), enters Symbol and Timeframe.
+3. Backend validates the symbol against the selected market's exchangeInfo and rejects symbols not present there.
+4. Mapping is saved with its own `market_type`.
 
 3.3. Automated Futures Trade
-1. TradingView sends LONG/SHORT/EXIT for a mapped Futures account.
+1. TradingView sends LONG/SHORT/EXIT for a (symbol, timeframe) mapped on a Futures mapping pointing at an account with futures_enabled.
 2. Bot checks risk limits.
 3. Bot applies Futures leverage and single/multi mode.
 4. Bot executes Futures market order and optional Futures stop/trailing orders.
 5. UI updates Futures positions, balances, history, and logs.
 
 3.4. Automated Spot Trade
-1. TradingView sends BUY/LONG/ENTRY or SELL/SHORT/EXIT for a mapped Spot account.
+1. TradingView sends BUY/LONG/ENTRY or SELL/SHORT/EXIT for a (symbol, timeframe) mapped on a Spot mapping pointing at an account with spot_enabled.
 2. Bot checks risk limits.
 3. BUY calculates USDT allocation and places Spot market BUY.
 4. SELL sells available base asset.
-5. UI updates Spot holdings, balances, history, and logs.
+5. UI updates Spot holdings (including refreshed avg buy + unrealized P&L), balances, history, and logs.
 
 3.5. Positions & Holdings
 1. User opens Positions & Holdings.
-2. Futures rows can be force-closed with reduce-only Futures market orders.
-3. Spot rows can be sold with Spot market SELL orders.
-4. UI labels and confirmation modals clearly distinguish "Close Futures Position" from "Sell Spot Holding".
+2. For each active account, the page fetches both Futures positions and Spot holdings if the respective flag is set.
+3. Futures rows can be force-closed with reduce-only Futures market orders.
+4. Spot rows can be sold with Spot market SELL orders.
+5. The force-close endpoint takes `market_type` in the request body — required because a single account may simultaneously hold a Futures position and a Spot bag on the same symbol.
+6. UI labels and confirmation modals clearly distinguish "Close Futures Position" from "Sell Spot Holding".
 
 4. Non-Functional Requirements
 * Latency: Webhook ingestion to exchange submission should remain under 500ms where network conditions allow.
 * Resilience: Binance API failures must be logged and returned without crashing the API server.
 * Security: API secrets encrypted at rest, dashboard protected by sessions, optional webhook secret supported, no hardcoded credentials.
-* Backward Compatibility: Existing accounts and mappings default to Futures after migration.
+* Backward Compatibility: V1 accounts with `market_type='spot'` are migrated to per-market flags on first start (spot_enabled=1, futures_enabled reset to 0). V1 accounts with `market_type='futures'` keep futures_enabled. To grant an existing account the second market, the user updates its credentials, which triggers a fresh dual-market verification.
 * Testnet Support: Futures and Spot testnets are both supported through the same Testnet Mode toggle.
+* Display Precision: Price, quantity, and USDT amounts render with magnitude-aware precision; sub-cent and sub-satoshi values must not be silently rounded to zero in the UI.
+
+5. Extension Points
+* Adding a new market (e.g. Margin, Options) = subclass MarketAdapter, register in the factory, and add the corresponding `<market>_enabled` flag plus verification call. Route handlers, UI fan-out, and ledger recording adapt automatically.

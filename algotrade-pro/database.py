@@ -37,19 +37,36 @@ async def _add_missing_columns():
         ("bot_settings", "telegram_chat_id", "VARCHAR(64)"),
         ("bot_settings", "telegram_enabled", "BOOLEAN DEFAULT 0"),
         ("exchange_accounts", "market_type", "VARCHAR(10) DEFAULT 'futures'"),
+        ("exchange_accounts", "spot_enabled", "BOOLEAN DEFAULT 0"),
         ("symbol_mappings", "market_type", "VARCHAR(10) DEFAULT 'futures'"),
         ("trade_records", "market_type", "VARCHAR(10) DEFAULT 'futures'"),
         ("webhook_logs", "market_type", "VARCHAR(10)"),
     ]
 
+    sa = __import__("sqlalchemy")
     async with engine.begin() as conn:
         for table, column, col_type in migrations:
             try:
                 await conn.execute(
-                    __import__("sqlalchemy").text(
-                        f"ALTER TABLE {table} ADD COLUMN {column} {col_type}"
-                    )
+                    sa.text(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
                 )
             except Exception as e:
                 # "duplicate column" is expected for already-migrated DBs
                 logger.debug("Migration skip %s.%s: %s", table, column, e)
+
+        # Backfill per-market flags from legacy market_type on existing rows.
+        try:
+            await conn.execute(
+                sa.text(
+                    "UPDATE exchange_accounts SET spot_enabled = 1 "
+                    "WHERE market_type = 'spot' AND (spot_enabled IS NULL OR spot_enabled = 0)"
+                )
+            )
+            await conn.execute(
+                sa.text(
+                    "UPDATE exchange_accounts SET futures_enabled = 0 "
+                    "WHERE market_type = 'spot' AND futures_enabled = 1"
+                )
+            )
+        except Exception as e:
+            logger.debug("Backfill skip: %s", e)

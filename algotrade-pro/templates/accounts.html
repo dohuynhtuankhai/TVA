@@ -27,13 +27,6 @@
                 <input class="input-field" id="accName" placeholder="e.g. Main Trading" required>
             </div>
             <div style="margin-bottom: 12px;">
-                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Market Type</label>
-                <select class="input-field" id="accMarketType">
-                    <option value="futures">Futures</option>
-                    <option value="spot">Spot</option>
-                </select>
-            </div>
-            <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">API Key</label>
                 <input class="input-field" id="accKey" placeholder="Binance API Key" required>
             </div>
@@ -41,7 +34,7 @@
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">API Secret</label>
                 <input class="input-field" id="accSecret" type="password" placeholder="Binance API Secret" required>
             </div>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 12px;">Trading settings will be filled from your default Bot Settings. You can customize them per account after creation.</p>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 12px;">Both Futures and Spot will be verified against this key. Trading settings are filled from your default Bot Settings and can be edited per account.</p>
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                 <button type="button" class="btn-primary" style="background: #374151;" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save</button>
@@ -120,6 +113,14 @@
         <form onsubmit="submitMapping(event)">
             <input type="hidden" id="mappingAccountId">
             <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Market</label>
+                <select class="input-field" id="mapMarket" required>
+                    <option value="futures">Futures</option>
+                    <option value="spot">Spot</option>
+                </select>
+                <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Account must be verified for the chosen market.</p>
+            </div>
+            <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">Symbol</label>
                 <input class="input-field" id="mapSymbol" placeholder="e.g. BTCUSDT" required style="text-transform: uppercase;">
                 <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;" id="mappingMarketHint">Validated against the account's Binance market</p>
@@ -184,15 +185,16 @@
                 mappings = await mapRes.json();
             }
 
-            const marketType = acct.market_type || 'futures';
-            const isSpot = marketType === 'spot';
-            const marketLabel = isSpot ? 'Spot' : 'Futures';
-            const marketBadge = isSpot
-                ? '<span class="market-pill">Spot</span>'
-                : '<span class="badge-blue">Futures</span>';
-            const statusBadge = acct.futures_enabled
-                ? `<span class="badge-green">${marketLabel} Trading Enabled</span>`
-                : `<span class="badge-red">No ${marketLabel} Permission</span>`;
+            const futuresBadge = acct.futures_enabled
+                ? '<span class="badge-blue">Futures ✓</span>'
+                : '<span class="badge-red">Futures ✕</span>';
+            const spotBadge = acct.spot_enabled
+                ? '<span class="market-pill">Spot ✓</span>'
+                : '<span class="badge-red">Spot ✕</span>';
+            const marketBadge = `${futuresBadge} ${spotBadge}`;
+            const statusBadge = (acct.futures_enabled || acct.spot_enabled)
+                ? '<span class="badge-green">Trading Enabled</span>'
+                : '<span class="badge-red">No Market Permission</span>';
             const activeBadge = acct.is_active
                 ? '<span class="badge-green">Active</span>'
                 : '<span class="badge-yellow">Inactive</span>';
@@ -212,16 +214,22 @@
             const slLabel = acct.stoploss_percent ? `${acct.stoploss_percent}%` : 'None';
             const trailLabel = acct.trail_callback_pct ? `${acct.trail_activation_pct || 0}% / ${acct.trail_callback_pct}%` : 'None';
             const modeLabel = acct.trade_mode === 'multi' ? 'Multi' : 'Single';
-            const leverageLabel = isSpot ? 'Spot 1x' : `${acct.leverage}x`;
+            const leverageLabel = `${acct.leverage}x (Futures) · 1x (Spot)`;
 
             const mappingRows = mappings.length > 0
-                ? mappings.map(m => `
+                ? mappings.map(m => {
+                    const mb = (m.market_type === 'spot')
+                        ? '<span class="market-pill">Spot</span>'
+                        : '<span class="badge-blue">Futures</span>';
+                    return `
                     <tr>
+                        <td>${mb}</td>
                         <td><span class="badge-blue">${esc(m.symbol)}</span></td>
                         <td>${esc(m.timeframe)}</td>
                         <td><button onclick="deleteMapping(${m.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Remove</button></td>
-                    </tr>`).join('')
-                : '<tr><td colspan="3" style="text-align: center; color: #6b7280; font-size: 0.8rem;">No mappings</td></tr>';
+                    </tr>`;
+                  }).join('')
+                : '<tr><td colspan="4" style="text-align: center; color: #6b7280; font-size: 0.8rem;">No mappings</td></tr>';
 
             html += `
                 <div class="card" style="padding: 20px; margin-bottom: 16px;">
@@ -248,7 +256,7 @@
                             <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px; color: #93c5fd;">${initialSizeLabel}</p>
                         </div>
                         <div>
-                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">${isSpot ? 'Market' : 'Leverage'}</p>
+                            <p style="font-size: 0.65rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Leverage</p>
                             <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${leverageLabel}</p>
                         </div>
                         <div>
@@ -277,10 +285,12 @@
                             <h5 style="font-size: 0.875rem; font-weight: 500; color: #9ca3af;">Symbol Mappings</h5>
                             <button onclick="openMappingModal(${acct.id})" style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">+ Add</button>
                         </div>
+                        <div class="table-wrap">
                         <table>
-                            <thead><tr><th>Symbol</th><th>Timeframe</th><th></th></tr></thead>
+                            <thead><tr><th>Market</th><th>Symbol</th><th>Timeframe</th><th></th></tr></thead>
                             <tbody>${mappingRows}</tbody>
                         </table>
+                        </div>
                     </div>
                 </div>`;
         }
@@ -291,7 +301,6 @@
         document.getElementById('modalTitle').textContent = 'Add Exchange Account';
         document.getElementById('editAccountId').value = '';
         document.getElementById('accName').value = '';
-        document.getElementById('accMarketType').value = 'futures';
         document.getElementById('accKey').value = '';
         document.getElementById('accSecret').value = '';
         document.getElementById('accountModal').style.display = 'flex';
@@ -309,19 +318,16 @@
         document.getElementById('settingsAccountId').value = acct.id;
         document.getElementById('setTradingType').value = acct.trading_size_type;
         document.getElementById('setTradingValue').value = acct.trading_size_value;
-        const isSpot = (acct.market_type || 'futures') === 'spot';
         const leverage = document.getElementById('setLeverage');
-        leverage.value = isSpot ? 1 : acct.leverage;
+        leverage.value = acct.leverage;
         leverage.min = 1;
-        leverage.max = isSpot ? 1 : 125;
-        leverage.disabled = isSpot;
-        document.getElementById('setLeverageLabel').textContent = isSpot ? 'Spot Leverage' : 'Futures Leverage';
-        document.getElementById('setLeverageHint').textContent = isSpot
-            ? 'Spot trades are always 1x. Futures leverage is unavailable on Spot accounts.'
-            : 'Applied before Futures orders (1x - 125x).';
-        document.getElementById('setTradeModeHint').textContent = isSpot
-            ? 'Single blocks duplicate buys while holding. Multi allows scale-in buys.'
-            : 'Single closes existing Futures position before new entry. Multi allows stacking.';
+        leverage.max = 125;
+        leverage.disabled = false;
+        document.getElementById('setLeverageLabel').textContent = 'Futures Leverage';
+        document.getElementById('setLeverageHint').textContent =
+            'Applied before Futures orders (1x - 125x). Spot trades always run at 1x.';
+        document.getElementById('setTradeModeHint').textContent =
+            'Futures: close existing position before new entry. Spot: block duplicate buys while holding (single) or allow scale-in (multi).';
         document.getElementById('setStoploss').value = acct.stoploss_percent || '';
         document.getElementById('setTrailActivation').value = acct.trail_activation_pct || '';
         document.getElementById('setTrailCallback').value = acct.trail_callback_pct || '';
@@ -352,8 +358,20 @@
         document.getElementById('mapSymbol').value = '';
         document.getElementById('mapTimeframe').value = '';
         const acct = _accountCache[accountId];
-        const market = (acct && acct.market_type === 'spot') ? 'Spot' : 'Futures';
-        document.getElementById('mappingMarketHint').textContent = `Validated against Binance ${market}`;
+        const select = document.getElementById('mapMarket');
+        // Restrict market options to those the account is verified for
+        select.innerHTML = '';
+        if (acct && acct.futures_enabled) {
+            select.insertAdjacentHTML('beforeend', '<option value="futures">Futures</option>');
+        }
+        if (acct && acct.spot_enabled) {
+            select.insertAdjacentHTML('beforeend', '<option value="spot">Spot</option>');
+        }
+        if (select.options.length === 0) {
+            select.insertAdjacentHTML('beforeend', '<option value="">— No verified market —</option>');
+        }
+        document.getElementById('mappingMarketHint').textContent =
+            'Symbol validated against the selected Binance market.';
         document.getElementById('mappingModal').style.display = 'flex';
     }
 
@@ -368,7 +386,6 @@
             const id = document.getElementById('editAccountId').value;
             const body = {
                 name: document.getElementById('accName').value,
-                market_type: document.getElementById('accMarketType').value,
                 api_key: document.getElementById('accKey').value,
                 api_secret: document.getElementById('accSecret').value,
             };
@@ -426,7 +443,14 @@
             symbol: document.getElementById('mapSymbol').value.toUpperCase().trim(),
             timeframe: document.getElementById('mapTimeframe').value.trim(),
             account_id: parseInt(document.getElementById('mappingAccountId').value),
+            market_type: document.getElementById('mapMarket').value,
         };
+        if (!body.market_type) {
+            const errorEl = document.getElementById('mappingError');
+            errorEl.textContent = 'This account has no verified market. Re-check API key permissions.';
+            errorEl.style.display = 'block';
+            return;
+        }
         const res = await fetch('/api/accounts/mappings', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
         if (res.ok) { closeMappingModal(); showToast('Mapping added'); loadAccounts(); }
         else {

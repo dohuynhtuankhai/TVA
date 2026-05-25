@@ -46,12 +46,51 @@
         .ws-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .ws-dot.connected { background-color: #34d399; }
         .ws-dot.disconnected { background-color: #ef4444; }
+
+        /* Mobile hamburger (hidden ≥769px) */
+        .menu-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: 60; background: #1f2937; border: 1px solid #374151; color: #f9fafb; width: 40px; height: 40px; border-radius: 0.5rem; cursor: pointer; align-items: center; justify-content: center; }
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 45; }
+        .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+        /* Tablet + mobile */
+        @media (max-width: 1024px) {
+            .main-content { padding: 24px 16px; }
+        }
+        @media (max-width: 768px) {
+            .menu-toggle { display: inline-flex; }
+            .sidebar { transform: translateX(-100%); transition: transform 0.2s ease; z-index: 50; box-shadow: 4px 0 12px rgba(0,0,0,0.4); }
+            .sidebar.open { transform: translateX(0); }
+            .sidebar.open + .sidebar-backdrop { display: block; }
+            .main-content { margin-left: 0; padding: 60px 12px 24px; }
+            #testnetBanner { left: 0 !important; padding-left: 60px !important; }
+            /* Collapse 4-col stat grids to 2 cols */
+            .stat-grid-4 { grid-template-columns: 1fr 1fr !important; }
+            /* Generic 4-col stat row used in account cards */
+            .main-content [style*="grid-template-columns: repeat(4"] { grid-template-columns: 1fr 1fr !important; }
+            /* Cards/forms: 2-col → 1-col */
+            .main-content [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+            /* Filter bar wraps */
+            .filter-row { flex-wrap: wrap; gap: 8px !important; }
+            .modal-content { max-width: 92vw !important; padding: 16px !important; }
+        }
+        @media (max-width: 480px) {
+            .main-content { padding: 56px 8px 16px; }
+            .main-content [style*="grid-template-columns: repeat(4"] { grid-template-columns: 1fr !important; }
+            h2, h3 { font-size: 1.1rem !important; }
+            .badge-green, .badge-red, .badge-yellow, .badge-blue, .market-pill { font-size: 0.65rem; padding: 2px 6px; }
+            td, th { padding: 8px 10px; font-size: 0.75rem; }
+        }
     </style>
 </head>
 <body>
 
+<!-- Mobile menu toggle -->
+<button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation" onclick="toggleSidebar()">
+    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+</button>
+
 <!-- Sidebar -->
-<aside class="sidebar">
+<aside class="sidebar" id="sidebar">
     <div style="margin-bottom: 32px;">
         <h1 style="font-size: 1.25rem; font-weight: 700; color: #f9fafb;">
             &#9889; AlgoTrade Pro
@@ -99,6 +138,7 @@
         </div>
     </div>
 </aside>
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
 
 <!-- Testnet Banner (loaded dynamically) -->
 <div id="testnetBanner" style="display: none; position: fixed; top: 0; left: 250px; right: 0; background: linear-gradient(90deg, #78350f, #92400e); color: #fcd34d; text-align: center; padding: 6px; font-size: 0.8rem; font-weight: 600; z-index: 50; letter-spacing: 0.05em;">
@@ -122,6 +162,32 @@
         return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
     }
     const esc = escapeHtml;  // short alias
+
+    // ── Numeric formatters (magnitude-aware for low-price coins) ────
+    function fmtPrice(v) {
+        const n = Number(v);
+        if (!isFinite(n) || n === 0) return '0';
+        const abs = Math.abs(n);
+        if (abs >= 1000)  return n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        if (abs >= 1)     return n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4});
+        if (abs >= 0.01)  return n.toFixed(6);
+        if (abs >= 1e-6)  return n.toFixed(8);
+        return n.toExponential(4);
+    }
+    function fmtQty(v) {
+        const n = Number(v);
+        if (!isFinite(n) || n === 0) return '0';
+        const abs = Math.abs(n);
+        if (abs >= 1000) return n.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 2});
+        if (abs >= 1)    return n.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 4});
+        if (abs >= 0.01) return n.toFixed(6);
+        return n.toFixed(8);
+    }
+    function fmtUsdt(v) {
+        const n = Number(v);
+        if (!isFinite(n)) return '0.00';
+        return n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
 
     // ── WebSocket ───────────────────────────────────────────────────
     let ws;
@@ -184,6 +250,18 @@
         await fetch('/api/auth/logout', { method: 'POST' });
         window.location.href = '/login';
     }
+
+    // ── Mobile sidebar toggle ───────────────────────────────────────
+    function toggleSidebar(force) {
+        const sb = document.getElementById('sidebar');
+        const open = (typeof force === 'boolean') ? force : !sb.classList.contains('open');
+        sb.classList.toggle('open', open);
+        document.getElementById('sidebarBackdrop').style.display = open ? 'block' : 'none';
+    }
+    // Close drawer when a nav link is clicked on mobile
+    document.querySelectorAll('.sidebar .nav-link').forEach(a => {
+        a.addEventListener('click', () => { if (window.innerWidth <= 768) toggleSidebar(false); });
+    });
 
     connectWS();
 

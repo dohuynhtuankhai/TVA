@@ -107,10 +107,10 @@
 
             document.getElementById('totalPositions').textContent = positions.length;
             const totalNotional = positions.reduce((s, p) => s + p.notional, 0);
-            document.getElementById('totalNotional').textContent = '$' + totalNotional.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('totalNotional').textContent = '$' + fmtUsdt(totalNotional);
             const totalPnl = positions.reduce((s, p) => s + p.unrealized_pnl, 0);
             const pnlEl = document.getElementById('totalPnl');
-            pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + totalPnl.toFixed(2) + ' USDT';
+            pnlEl.textContent = (totalPnl >= 0 ? '+' : '') + fmtUsdt(totalPnl) + ' USDT';
             pnlEl.className = totalPnl >= 0 ? 'pnl-positive' : 'pnl-negative';
             pnlEl.style.fontSize = '1.5rem';
             pnlEl.style.fontWeight = '700';
@@ -130,7 +130,9 @@
                 const pnlClass = p.unrealized_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
                 const pnlPctClass = p.pnl_percent >= 0 ? 'pnl-positive' : 'pnl-negative';
                 const posData = JSON.stringify(p).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                const entryLabel = isSpot ? `Free: ${p.free}` : p.entry_price.toLocaleString();
+                const entryLabel = isSpot
+                    ? (p.entry_price > 0 ? `${fmtPrice(p.entry_price)} <span style="color:#6b7280;font-size:0.7rem;">avg</span>` : `<span style="color:#6b7280;">—</span>`)
+                    : fmtPrice(p.entry_price);
                 const leverageLabel = isSpot ? 'Spot 1x' : `${p.leverage}x`;
                 const buttonLabel = isSpot ? 'Sell' : 'Close';
                 return `<tr>
@@ -138,12 +140,12 @@
                     <td>${marketBadge}</td>
                     <td style="font-weight: 500;">${esc(p.symbol)}</td>
                     <td>${sideBadge}</td>
-                    <td>${p.size}</td>
+                    <td>${fmtQty(p.size)}</td>
                     <td>${entryLabel}</td>
-                    <td>${p.mark_price.toLocaleString()}</td>
-                    <td>$${p.notional.toLocaleString()}</td>
+                    <td>${fmtPrice(p.mark_price)}</td>
+                    <td>$${fmtUsdt(p.notional)}</td>
                     <td>${leverageLabel}</td>
-                    <td class="${pnlClass}" style="font-weight: 500;">${p.unrealized_pnl >= 0 ? '+' : ''}${p.unrealized_pnl.toFixed(2)}</td>
+                    <td class="${pnlClass}" style="font-weight: 500;">${p.unrealized_pnl >= 0 ? '+' : ''}${fmtUsdt(p.unrealized_pnl)}</td>
                     <td class="${pnlPctClass}">${p.pnl_percent >= 0 ? '+' : ''}${p.pnl_percent.toFixed(2)}%</td>
                     <td><button onclick='openCloseModal(${posData})' class="btn-danger" style="padding: 4px 10px; font-size: 0.75rem;">${buttonLabel}</button></td>
                 </tr>`;
@@ -168,9 +170,9 @@
         const sideEl = document.getElementById('closeSide');
         sideEl.textContent = isSpot ? 'SPOT SELL' : `FUTURES ${pos.side}`;
         sideEl.style.color = isSpot || pos.side === 'SHORT' ? '#fca5a5' : '#6ee7b7';
-        document.getElementById('closeSize').textContent = pos.size;
+        document.getElementById('closeSize').textContent = fmtQty(pos.size);
         const pnlEl = document.getElementById('closePnl');
-        pnlEl.textContent = (pos.unrealized_pnl >= 0 ? '+' : '') + pos.unrealized_pnl.toFixed(2) + ' USDT';
+        pnlEl.textContent = (pos.unrealized_pnl >= 0 ? '+' : '') + fmtUsdt(pos.unrealized_pnl) + ' USDT';
         pnlEl.style.color = pos.unrealized_pnl >= 0 ? '#6ee7b7' : '#fca5a5';
         document.getElementById('confirmCloseBtn').disabled = false;
         document.getElementById('confirmCloseBtn').textContent = isSpot ? 'Sell Holding' : 'Close Position';
@@ -195,6 +197,7 @@
                 body: JSON.stringify({
                     account_id: pendingClose.account_id,
                     symbol: pendingClose.symbol,
+                    market_type: pendingClose.market_type || 'futures',
                 }),
             });
             const data = await res.json();

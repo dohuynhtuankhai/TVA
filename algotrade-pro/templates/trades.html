@@ -134,7 +134,7 @@
             document.getElementById('statWinRate').textContent = s.win_rate + '%';
 
             const pnlEl = document.getElementById('statPnl');
-            pnlEl.textContent = (s.total_pnl >= 0 ? '+' : '') + s.total_pnl.toFixed(2);
+            pnlEl.textContent = (s.total_pnl >= 0 ? '+' : '') + fmtUsdt(s.total_pnl);
             pnlEl.className = s.total_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
             pnlEl.style.fontSize = '1.25rem';
             pnlEl.style.fontWeight = '700';
@@ -204,11 +204,11 @@
                 <td style="font-weight:500;">${esc(t.symbol)}</td>
                 <td>${actionBadge}</td>
                 <td>${sideBadge}</td>
-                <td>${t.entry_price ? t.entry_price.toLocaleString(undefined, {minimumFractionDigits: 2}) : '—'}</td>
-                <td>${t.quantity ? t.quantity.toFixed(4) : '—'}</td>
-                <td>${t.usdt_value ? t.usdt_value.toFixed(2) : '—'}</td>
+                <td>${t.entry_price ? fmtPrice(t.entry_price) : '—'}</td>
+                <td>${t.quantity ? fmtQty(t.quantity) : '—'}</td>
+                <td>${t.usdt_value ? fmtUsdt(t.usdt_value) : '—'}</td>
                 <td>${marketBadge}</td>
-                <td class="${pnlClass}" style="font-weight:500;">${t.realized_pnl !== 0 ? (t.realized_pnl > 0 ? '+' : '') + t.realized_pnl.toFixed(2) : '—'}</td>
+                <td class="${pnlClass}" style="font-weight:500;">${t.realized_pnl !== 0 ? (t.realized_pnl > 0 ? '+' : '') + fmtUsdt(t.realized_pnl) : '—'}</td>
                 <td><span class="${statusBadge}">${esc(t.status)}</span></td>
             </tr>`;
         }).join('');

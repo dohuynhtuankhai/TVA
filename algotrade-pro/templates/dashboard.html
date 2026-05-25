@@ -37,6 +37,7 @@
 <!-- Account Breakdown -->
 <div class="card" style="padding: 24px; margin-bottom: 32px;">
     <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Account Balances</h3>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -51,11 +52,13 @@
             <tr><td colspan="5" style="text-align: center; color: #6b7280;">Loading…</td></tr>
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- Recent Trades -->
 <div class="card" style="padding: 24px;">
     <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Recent Trades</h3>
+    <div class="table-wrap">
     <table>
         <thead>
             <tr>
@@ -75,6 +78,7 @@
             <tr><td colspan="10" style="text-align: center; color: #6b7280;">Loading…</td></tr>
         </tbody>
     </table>
+    </div>
 </div>
 {% endblock %}
 
@@ -84,8 +88,8 @@
         try {
             const res = await fetch('/api/dashboard');
             const data = await res.json();
-            document.getElementById('totalBalance').textContent = data.total_balance.toLocaleString(undefined, {minimumFractionDigits: 2});
-            document.getElementById('totalMargin').textContent = data.total_available_margin.toLocaleString(undefined, {minimumFractionDigits: 2});
+            document.getElementById('totalBalance').textContent = fmtUsdt(data.total_balance);
+            document.getElementById('totalMargin').textContent = fmtUsdt(data.total_available_margin);
             document.getElementById('avgUtil').textContent = data.avg_margin_utilization.toFixed(1) + '%';
 
             const tbody = document.getElementById('accountsTable');
@@ -98,8 +102,8 @@
                     <tr>
                         <td style="font-weight: 500;">${esc(a.account_name)}</td>
                         <td>${market}</td>
-                        <td>${Number(a.wallet_balance).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                        <td>${Number(a.available_margin).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                        <td>${fmtUsdt(a.wallet_balance)}</td>
+                        <td>${fmtUsdt(a.available_margin)}</td>
                         <td><span class="badge-${a.margin_utilization > 80 ? 'red' : a.margin_utilization > 50 ? 'yellow' : 'green'}">${Number(a.margin_utilization).toFixed(1)}%</span></td>
                     </tr>
                 `}).join('');
@@ -115,7 +119,7 @@
             const data = await res.json();
             document.getElementById('totalTrades').textContent = data.total_trades;
             const pnlEl = document.getElementById('totalPnlLabel');
-            pnlEl.textContent = `P&L: ${data.total_pnl >= 0 ? '+' : ''}${data.total_pnl.toFixed(2)} USDT`;
+            pnlEl.textContent = `P&L: ${data.total_pnl >= 0 ? '+' : ''}${fmtUsdt(data.total_pnl)} USDT`;
             pnlEl.className = data.total_pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
         } catch (e) {
             showToast('Failed to load trade stats', 'error');
@@ -141,10 +145,10 @@
                         <td style="font-weight:500;">${esc(t.symbol)}</td>
                         <td>${esc(t.action)}</td>
                         <td>${esc(t.side)}</td>
-                        <td>${t.quantity ? Number(t.quantity).toFixed(4) : '—'}</td>
-                        <td>${t.entry_price ? Number(t.entry_price).toLocaleString() : '—'}</td>
-                        <td>${t.usdt_value ? Number(t.usdt_value).toFixed(2) : '—'}</td>
-                        <td class="${pnlClass}">${Number(t.realized_pnl).toFixed(2)}</td>
+                        <td>${t.quantity ? fmtQty(t.quantity) : '—'}</td>
+                        <td>${t.entry_price ? fmtPrice(t.entry_price) : '—'}</td>
+                        <td>${t.usdt_value ? fmtUsdt(t.usdt_value) : '—'}</td>
+                        <td class="${pnlClass}">${fmtUsdt(t.realized_pnl)}</td>
                         <td><span class="${statusBadge}">${esc(t.status)}</span></td>
                     </tr>`;
                 }).join('');

@@ -21,7 +21,6 @@ class AccountCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
     api_key: str = Field(..., min_length=10)
     api_secret: str = Field(..., min_length=10)
-    market_type: Optional[str] = Field("futures", pattern="^(futures|spot)$")
     trading_size_type: Optional[str] = Field(None, pattern="^(percent|fixed)$")
     trading_size_value: Optional[float] = Field(None, gt=0)
     leverage: Optional[int] = Field(None, ge=1, le=125)
@@ -36,7 +35,6 @@ class AccountUpdate(BaseModel):
     api_key: Optional[str] = None
     api_secret: Optional[str] = None
     is_active: Optional[bool] = None
-    market_type: Optional[str] = Field(None, pattern="^(futures|spot)$")
     trading_size_type: Optional[str] = Field(None, pattern="^(percent|fixed)$")
     trading_size_value: Optional[float] = Field(None, gt=0)
     leverage: Optional[int] = Field(None, ge=1, le=125)
@@ -52,7 +50,7 @@ class AccountResponse(BaseModel):
     api_key_preview: str
     is_active: bool
     futures_enabled: bool
-    market_type: str = "futures"
+    spot_enabled: bool
     trading_size_type: str
     trading_size_value: float
     leverage: int
@@ -73,6 +71,7 @@ class SymbolMappingCreate(BaseModel):
     symbol: str = Field(..., min_length=3, max_length=20, pattern=r"^[A-Za-z0-9:.]+$")
     timeframe: str = Field(..., min_length=1, max_length=10)
     account_id: int = Field(..., ge=1)
+    market_type: str = Field(..., pattern="^(futures|spot)$")
 
 
 class SymbolMappingResponse(BaseModel):

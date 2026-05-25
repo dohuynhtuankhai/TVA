@@ -2,17 +2,16 @@
 
 import asyncio
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from bot_engine import create_binance_client
 from database import async_session, get_db
 from encryption import decrypt_secret
-from models import ExchangeAccount, SymbolMapping, TradeRecord
+from market_adapters import create_market_adapter, normalize_market_type
+from models import ExchangeAccount, TradeRecord
 
 logger = logging.getLogger("algotrade.trades")
 
@@ -152,84 +151,48 @@ async def trade_accounts(db: AsyncSession = Depends(get_db)):
 
 # ── Binance Trade Sync ──────────────────────────────────────────────────────
 
-async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int:
-    """Pull trade history from Binance for one account. Returns count of new trades imported."""
-    client = None
+async def _sync_one_market(
+    account: ExchangeAccount, market_type: str, db: AsyncSession
+) -> int:
+    """Pull trade history from Binance for one (account, market) pair."""
+    adapter = None
     imported = 0
+    market_type = normalize_market_type(market_type)
     try:
         secret = decrypt_secret(account.api_secret_encrypted)
-        market_type = account.market_type or "futures"
-        client = await create_binance_client(account.api_key, secret, market_type=market_type)
-
-        if market_type == "futures":
-            trades = await client.futures_account_trades()
-        else:
-            mapping_result = await db.execute(
-                select(TradeRecord.symbol)
-                .where(TradeRecord.account_id == account.id)
-                .distinct()
-            )
-            symbols = set(mapping_result.scalars().all())
-            configured = await db.execute(
-                select(SymbolMapping.symbol).where(SymbolMapping.account_id == account.id)
-            )
-            symbols.update(configured.scalars().all())
-
-            trades = []
-            for symbol in symbols:
-                try:
-                    trades.extend(await client.get_my_trades(symbol=symbol))
-                except Exception as e:
-                    logger.warning("Spot sync skipped %s for '%s': %s", symbol, account.name, e)
+        adapter = await create_market_adapter(
+            account.api_key, secret, market_type=market_type
+        )
+        trades = await adapter.fetch_remote_trades(account, db)
 
         for t in trades:
-            # Check if we already have this trade (by matching binance trade id via a combo key)
-            trade_time = datetime.fromtimestamp(t["time"] / 1000, tz=timezone.utc)
-            symbol = t["symbol"]
-            price = float(t["price"])
-            qty = float(t["qty"])
-            realized_pnl = float(t.get("realizedPnl", 0)) if market_type == "futures" else 0.0
-            side = t["side"] if market_type == "futures" else ("BUY" if t.get("isBuyer") else "SELL")
-            commission = float(t.get("commission", 0))
-
-            # Deduplicate: check if trade with same account + symbol + time + qty exists
             existing = await db.execute(
                 select(TradeRecord).where(
                     TradeRecord.account_id == account.id,
-                    TradeRecord.symbol == symbol,
-                    TradeRecord.executed_at == trade_time,
-                    TradeRecord.quantity == qty,
+                    TradeRecord.symbol == t["symbol"],
+                    TradeRecord.executed_at == t["time"],
+                    TradeRecord.quantity == t["quantity"],
                 )
             )
             if existing.scalar_one_or_none():
                 continue
 
-            if market_type == "futures":
-                action = "LONG" if side == "BUY" else "SHORT"
-                if t.get("reduceOnly", False) or realized_pnl != 0:
-                    action = "EXIT"
-                leverage = account.leverage
-            else:
-                action = "BUY" if side == "BUY" else "SELL"
-                leverage = 1
-
-            usdt_value = price * qty
-
+            usdt_value = t["price"] * t["quantity"]
             record = TradeRecord(
                 account_id=account.id,
-                symbol=symbol,
+                symbol=t["symbol"],
                 timeframe="binance",
-                action=action,
-                side=side,
-                entry_price=price,
-                quantity=qty,
+                action=t["action"],
+                side=t["side"],
+                entry_price=t["price"],
+                quantity=t["quantity"],
                 usdt_value=round(usdt_value, 2),
-                realized_pnl=round(realized_pnl, 2),
-                leverage=leverage,
+                realized_pnl=round(t["realized_pnl"], 2),
+                leverage=t["leverage"],
                 status="FILLED",
                 error_message=None,
                 market_type=market_type,
-                executed_at=trade_time,
+                executed_at=t["time"],
             )
             db.add(record)
             imported += 1
@@ -237,15 +200,31 @@ async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int
         if imported > 0:
             await db.commit()
 
-        logger.info("Synced %d new trades for account '%s'", imported, account.name)
+        logger.info(
+            "Synced %d new %s trades for account '%s'",
+            imported, market_type, account.name,
+        )
 
     except Exception as e:
-        logger.error("Sync failed for account '%s': %s", account.name, str(e))
+        logger.error(
+            "%s sync failed for account '%s': %s",
+            market_type, account.name, str(e),
+        )
     finally:
-        if client:
-            await client.close_connection()
+        if adapter is not None:
+            await adapter.close()
 
     return imported
+
+
+async def sync_account_trades(account: ExchangeAccount, db: AsyncSession) -> int:
+    """Pull trade history for every enabled market on the account."""
+    total = 0
+    if account.futures_enabled:
+        total += await _sync_one_market(account, "futures", db)
+    if account.spot_enabled:
+        total += await _sync_one_market(account, "spot", db)
+    return total
 
 
 @router.post("/sync")
@@ -254,7 +233,6 @@ async def sync_all_trades(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(ExchangeAccount.id).where(
             ExchangeAccount.is_active == True,  # noqa: E712
-            ExchangeAccount.futures_enabled == True,
         )
     )
     account_ids = result.scalars().all()
