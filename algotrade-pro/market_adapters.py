@@ -713,6 +713,23 @@ class SpotAdapter(MarketAdapter):
             )
         )
         symbols.update(configured.scalars().all())
+        # Also seed from current Spot holdings: any asset the account
+        # currently holds implies a prior BUY that may not yet be in the
+        # ledger. Binance Spot `get_my_trades` requires a symbol param,
+        # so include {asset}USDT for every non-zero balance.
+        try:
+            spot_account = await self.client.get_account()
+            for balance in spot_account.get("balances", []):
+                asset = balance.get("asset")
+                free = float(balance.get("free", 0) or 0)
+                locked = float(balance.get("locked", 0) or 0)
+                if not asset or asset == "USDT" or (free + locked) <= 0:
+                    continue
+                symbols.add(f"{asset}USDT")
+        except Exception as e:
+            logger.warning(
+                "Spot holdings seed failed for '%s': %s", account.name, e
+            )
 
         normalized: list[dict] = []
         for symbol in symbols:

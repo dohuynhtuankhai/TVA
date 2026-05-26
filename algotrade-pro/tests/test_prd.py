@@ -428,3 +428,56 @@ class TestComputeSpotAvgCost:
         avg, qty = compute_spot_avg_cost(trades)
         assert avg == 100
         assert qty == 1
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# SpotAdapter.fetch_remote_trades — seed symbols from current holdings
+# ──────────────────────────────────────────────────────────────────────────
+
+class TestSpotFetchRemoteTradesSeed:
+    async def test_seeds_symbols_from_balances(self, monkeypatch):
+        """On a brand-new account (no mappings, no ledger) the Spot sync still
+        queries get_my_trades for every asset currently held, so BUY history
+        is recovered for coins the user deposited or bought outside the bot."""
+        from market_adapters import SpotAdapter
+
+        client = MagicMock()
+        client.get_account = AsyncMock(return_value={
+            "balances": [
+                {"asset": "USDT", "free": "100", "locked": "0"},  # skipped
+                {"asset": "BTC", "free": "0.1", "locked": "0"},   # seed BTCUSDT
+                {"asset": "ETH", "free": "0", "locked": "2"},     # seed ETHUSDT
+                {"asset": "DOGE", "free": "0", "locked": "0"},    # skipped (zero)
+            ]
+        })
+        queried_symbols: list[str] = []
+
+        async def fake_get_my_trades(symbol):
+            queried_symbols.append(symbol)
+            return []  # no trades, just record the symbol queried
+
+        client.get_my_trades = AsyncMock(side_effect=fake_get_my_trades)
+
+        adapter = SpotAdapter(client)
+        account = SimpleNamespace(id=1, name="new-acc")
+
+        # Fake DB that returns no existing history/mapping symbols
+        from contextlib import asynccontextmanager
+
+        class FakeResult:
+            def scalars(self):
+                class S:
+                    def all(self_inner):
+                        return []
+                return S()
+
+        async def fake_execute(*args, **kwargs):
+            return FakeResult()
+
+        db = MagicMock()
+        db.execute = fake_execute
+
+        trades = await adapter.fetch_remote_trades(account, db)
+        assert trades == []
+        # get_my_trades called once per seeded symbol — kwargs not positional
+        assert set(queried_symbols) == {"BTCUSDT", "ETHUSDT"}
