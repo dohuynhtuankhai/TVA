@@ -221,7 +221,7 @@
                     return `
                     <tr>
                         <td>${mb}</td>
-                        <td><span class="badge-blue">${esc(m.symbol)}</span></td>
+                        <td><a href="${tvChartUrl(m.symbol, m.timeframe, m.market_type)}" target="_blank" rel="noopener" class="badge-blue" style="text-decoration:none;" title="Open ${esc(m.symbol)} on TradingView">${esc(m.symbol)}</a></td>
                         <td>${esc(m.timeframe)}</td>
                         <td><button onclick="deleteMapping(${m.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Remove</button></td>
                     </tr>`;

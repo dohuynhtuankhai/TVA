@@ -140,7 +140,7 @@
                 : '<span style="color:#6b7280;">—</span>';
             const payload = JSON.stringify(a).replace(/"/g, '&quot;');
             return `<tr class="${status.rowClass}">
-                <td style="font-weight:500;">${esc(a.symbol)}</td>
+                <td style="font-weight:500;">${tvSymbolLink(a.symbol, a.timeframe, null)}</td>
                 <td>${esc(a.timeframe)}</td>
                 <td>${a.name ? esc(a.name) : '<span style="color:#6b7280;">—</span>'}</td>
                 <td style="font-size:0.8rem;">${esc(expFmt)}</td>

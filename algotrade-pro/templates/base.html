@@ -46,6 +46,8 @@
         .ws-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
         .ws-dot.connected { background-color: #34d399; }
         .ws-dot.disconnected { background-color: #ef4444; }
+        .tv-link { color: #93c5fd; text-decoration: none; border-bottom: 1px dashed rgba(147,197,253,0.35); }
+        .tv-link:hover { color: #bfdbfe; border-bottom-color: #bfdbfe; }
 
         /* Mobile hamburger (hidden ≥769px) */
         .menu-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: 60; background: #1f2937; border: 1px solid #374151; color: #f9fafb; width: 40px; height: 40px; border-radius: 0.5rem; cursor: pointer; align-items: center; justify-content: center; }
@@ -190,6 +192,25 @@
         const n = Number(v);
         if (!isFinite(n)) return '0.00';
         return n.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    // ── TradingView deeplinks ───────────────────────────────────────
+    // Opens TV chart for a symbol+timeframe. Futures uses BINANCE:<sym>.P
+    // (perpetual ticker on TV). Spot/unknown markets use BINANCE:<sym>.
+    function tvChartUrl(symbol, timeframe, marketType) {
+        if (!symbol) return '#';
+        const sym = String(symbol).toUpperCase();
+        const tvSym = (marketType === 'futures') ? `BINANCE:${sym}.P` : `BINANCE:${sym}`;
+        const tf = timeframe ? String(timeframe) : '';
+        const params = new URLSearchParams({ symbol: tvSym });
+        if (tf) params.set('interval', tf);
+        return `https://www.tradingview.com/chart/?${params.toString()}`;
+    }
+    // Convenience: produce an <a> element rendering the symbol as a TV link.
+    function tvSymbolLink(symbol, timeframe, marketType, displayLabel) {
+        const url = tvChartUrl(symbol, timeframe, marketType);
+        const label = displayLabel || symbol;
+        return `<a href="${url}" target="_blank" rel="noopener" class="tv-link" title="Open ${esc(symbol)} on TradingView">${esc(label)}</a>`;
     }
 
     // ── WebSocket ───────────────────────────────────────────────────

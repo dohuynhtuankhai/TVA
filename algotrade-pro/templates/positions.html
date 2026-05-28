@@ -135,7 +135,7 @@
                 return `<tr>
                     <td style="font-weight: 500;">${esc(p.account_name)}</td>
                     <td>${marketBadge}</td>
-                    <td style="font-weight: 500;">${esc(p.symbol)}</td>
+                    <td style="font-weight: 500;">${tvSymbolLink(p.symbol, null, p.market_type)}</td>
                     <td>${sideBadge}</td>
                     <td>${fmtQty(p.size)}</td>
                     <td>${entryLabel}</td>

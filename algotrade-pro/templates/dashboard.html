@@ -139,7 +139,7 @@
                     return `<tr>
                         <td style="font-size:0.8rem; color:#9ca3af;">${esc(time)}</td>
                         <td>${market}</td>
-                        <td style="font-weight:500;">${esc(t.symbol)}</td>
+                        <td style="font-weight:500;">${tvSymbolLink(t.symbol, t.timeframe, t.market_type)}</td>
                         <td>${esc(t.action)}</td>
                         <td>${esc(t.side)}</td>
                         <td>${t.quantity ? fmtQty(t.quantity) : '—'}</td>

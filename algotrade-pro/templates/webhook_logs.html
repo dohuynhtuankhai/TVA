@@ -133,7 +133,7 @@
                 html += `<tr>
                     <td style="font-size: 0.8rem; white-space: nowrap;">${esc(time)}</td>
                     <td>${marketBadge}</td>
-                    <td><span class="badge-blue">${esc(log.symbol)}</span></td>
+                    <td><a href="${tvChartUrl(log.symbol, log.timeframe, log.market_type)}" target="_blank" rel="noopener" class="badge-blue" style="text-decoration:none;" title="Open ${esc(log.symbol)} on TradingView">${esc(log.symbol)}</a></td>
                     <td><span class="${actionClass}">${esc(actionLabel)}</span></td>
                     <td>${esc(log.timeframe)}</td>
                     <td>${price}</td>

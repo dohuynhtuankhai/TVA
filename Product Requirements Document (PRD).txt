@@ -142,6 +142,16 @@ Verification flags (set automatically at account create/update):
 6. Utility Tab
 The Utility tab houses helpers that support trading without being part of the bot's execution path. The current tab and its first sub-section are listed below; future utilities are expected to slot in as additional sub-sections.
 
+6.0. TradingView Deeplinks (cross-cutting UI behavior)
+* Goal: clicking any symbol in any table opens the corresponding TradingView chart in a new tab, preloaded with that symbol and timeframe.
+* URL convention (handled by `tvChartUrl(symbol, timeframe, marketType)` in base.html):
+  - Spot or unknown: `https://www.tradingview.com/chart/?symbol=BINANCE:<SYM>&interval=<TF>`
+  - Futures: `https://www.tradingview.com/chart/?symbol=BINANCE:<SYM>.P&interval=<TF>` — `.P` is TradingView's perpetual ticker for Binance Futures.
+  - Timeframes are passed through verbatim because the bot already stores TV-native intervals (5, 15, 60, 240, D, W, M).
+* Helper `tvSymbolLink(symbol, timeframe, marketType, label?)` renders a styled `<a class="tv-link">` opening in a new tab with `rel="noopener"`.
+* Applied to: positions/holdings symbol column, order-history symbol column, dashboard recent-trades symbol column, webhook-logs symbol badge, account-mapping symbol badge, utility TradingView-alert symbol column.
+* Non-goals: linking into a specific saved chart layout, restoring the user's indicators / drawings, mobile-app deeplink fallback. Indicator setup persists only when the user has it saved as their TradingView default chart for that symbol/exchange.
+
 6.1. TradingView Alerts
 * Purpose: TradingView alerts expire after a fixed interval (typically ~2 months) and silently stop firing. The user logs each alert they have configured externally so the system can remind them before it dies.
 * Per-alert fields: symbol, timeframe, expires_at (UTC), optional name (strategy label), optional note.

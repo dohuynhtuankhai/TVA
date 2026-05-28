@@ -198,7 +198,7 @@
             return `<tr>
                 <td style="font-size:0.75rem; color:#9ca3af; white-space:nowrap;">${esc(time)}</td>
                 <td style="font-weight:500;">${esc(t.account_name)}</td>
-                <td style="font-weight:500;">${esc(t.symbol)}</td>
+                <td style="font-weight:500;">${tvSymbolLink(t.symbol, t.timeframe, t.market_type)}</td>
                 <td>${actionBadge}</td>
                 <td>${sideBadge}</td>
                 <td>${t.entry_price ? fmtPrice(t.entry_price) : '—'}</td>
