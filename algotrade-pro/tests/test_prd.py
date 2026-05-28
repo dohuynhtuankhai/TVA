@@ -481,3 +481,82 @@ class TestSpotFetchRemoteTradesSeed:
         assert trades == []
         # get_my_trades called once per seeded symbol — kwargs not positional
         assert set(queried_symbols) == {"BTCUSDT", "ETHUSDT"}
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# Utility watcher — TradingView alert expiry notification decision
+# ──────────────────────────────────────────────────────────────────────────
+
+class TestTVAlertWatcherDecision:
+    """Pure-logic checks on the _is_due_for_notification predicate."""
+
+    def _now(self):
+        from datetime import datetime, timezone
+        return datetime(2026, 1, 15, 12, 0, tzinfo=timezone.utc)
+
+    def _row(self, expires_offset_hours, notified_offset_hours=None):
+        from datetime import timedelta
+        now = self._now()
+        row = SimpleNamespace(
+            expires_at=now + timedelta(hours=expires_offset_hours),
+            notified_at=(
+                now - timedelta(hours=notified_offset_hours)
+                if notified_offset_hours is not None else None
+            ),
+        )
+        return row
+
+    def test_far_future_not_due(self):
+        from datetime import timedelta
+        from utility_watcher import _is_due_for_notification
+        row = self._row(expires_offset_hours=72)  # 3 days away, warn=24h
+        assert not _is_due_for_notification(
+            row, self._now(), timedelta(hours=24), timedelta(hours=12),
+        )
+
+    def test_inside_warn_window_first_time(self):
+        from datetime import timedelta
+        from utility_watcher import _is_due_for_notification
+        row = self._row(expires_offset_hours=6)
+        assert _is_due_for_notification(
+            row, self._now(), timedelta(hours=24), timedelta(hours=12),
+        )
+
+    def test_recently_notified_skipped(self):
+        from datetime import timedelta
+        from utility_watcher import _is_due_for_notification
+        row = self._row(expires_offset_hours=6, notified_offset_hours=1)
+        assert not _is_due_for_notification(
+            row, self._now(), timedelta(hours=24), timedelta(hours=12),
+        )
+
+    def test_old_notification_renotifies(self):
+        from datetime import timedelta
+        from utility_watcher import _is_due_for_notification
+        row = self._row(expires_offset_hours=2, notified_offset_hours=13)
+        assert _is_due_for_notification(
+            row, self._now(), timedelta(hours=24), timedelta(hours=12),
+        )
+
+    def test_already_expired_still_notifies(self):
+        from datetime import timedelta
+        from utility_watcher import _is_due_for_notification
+        row = self._row(expires_offset_hours=-3)  # expired 3h ago
+        assert _is_due_for_notification(
+            row, self._now(), timedelta(hours=24), timedelta(hours=12),
+        )
+
+
+class TestTVAlertCreateSchema:
+    def test_requires_expires_at(self):
+        from schemas import TVAlertCreate
+        with pytest.raises(ValidationError):
+            TVAlertCreate(symbol="BTCUSDT", timeframe="5m")  # missing expires_at
+
+    def test_accepts_isoformat(self):
+        from schemas import TVAlertCreate
+        a = TVAlertCreate(
+            symbol="BTCUSDT", timeframe="5m",
+            expires_at="2099-01-01T00:00:00+00:00",
+        )
+        assert a.symbol == "BTCUSDT"

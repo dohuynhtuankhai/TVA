@@ -171,6 +171,31 @@ class WebhookLog(Base):
     received_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class TradingViewAlert(Base):
+    """Tracks TradingView alerts the user has set up externally.
+
+    TradingView alerts expire after a known interval and silently stop firing.
+    This table lets the user log each alert (which coin / timeframe it covers,
+    when it expires, an optional note) so a background watcher can remind
+    them via Telegram before the alert disappears.
+    """
+
+    __tablename__ = "tv_alerts"
+    __table_args__ = (
+        Index("ix_tv_alert_expires", "expires_at"),
+        Index("ix_tv_alert_symbol_tf", "symbol", "timeframe"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(40), nullable=False)
+    timeframe = Column(String(10), nullable=False)
+    name = Column(String(120), nullable=True)  # optional alert label / strategy name
+    note = Column(Text, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    notified_at = Column(DateTime, nullable=True)  # last time we sent a Telegram nudge
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class DailyPnl(Base):
     """Tracks daily profit/loss per account for risk limit checks."""
 

@@ -66,7 +66,7 @@ The Bot Engine is market-aware via a MarketAdapter strategy pattern.
   - Single mode blocks duplicate buys while already holding the base asset. Multi mode allows scale-in buys.
   - Stoploss attempts a Spot STOP_LOSS_LIMIT sell. Trailing stop is Futures-only; the engine logs a warning if configured for Spot.
 * Ledger Recording: Trade records include market_type so history can distinguish Futures from Spot. The market_type recorded comes from the mapping, not the account.
-* Spot Cost Basis: When the Positions tab loads, SpotAdapter walks the local TradeRecord ledger for each (account, symbol) to compute weighted-average buy price. A full SELL or EXIT resets the basis; a partial SELL preserves the running average. Avg price displays as "—" when no buys are recorded locally; run /api/trades/sync to backfill from Binance.
+* Spot Cost Basis: When the Positions tab loads, SpotAdapter walks the local TradeRecord ledger for each (account, symbol) to compute weighted-average buy price. A full SELL or EXIT resets the basis; a partial SELL preserves the running average. Avg price displays as "—" when no buys are recorded locally; run /api/trades/sync to backfill from Binance (the sync seeds queries from current holdings + mappings + existing ledger, so coins the user currently holds are recovered automatically).
 
 2.5. Per-Account Trading Settings
 Each account has a single shared settings row:
@@ -94,7 +94,11 @@ Verification flags (set automatically at account create/update):
 3. If neither market verifies, the request is rejected with a clear error.
 4. If at least one market verifies, the account is saved encrypted. `futures_enabled` and `spot_enabled` reflect the per-market result.
 5. Account settings are created from global defaults. `leverage` stores the Futures value; Spot is implicitly 1x.
-6. Background job auto-syncs trade history from Binance for every enabled market.
+6. Background job auto-syncs trade history from Binance for every enabled market:
+   - Futures: `futures_account_trades()` pulls all symbols at once.
+   - Spot: Binance only exposes per-symbol history. The job queries every symbol it can discover for that account — the union of existing TradeRecord symbols, configured SymbolMapping symbols, and `{asset}USDT` for every non-zero asset in the current Spot wallet. Coins that the user fully sold or transferred out before the account was added are not recoverable through this endpoint; they require a manual sync after the user creates a mapping or imports the symbol list.
+7. Live holdings, balances, Futures positions, and Spot 24h tickers populate when the user opens the Positions / Dashboard tabs (real-time, not part of the create flow).
+8. Spot avg-cost + unrealized P&L become available as soon as the imported BUY rows hit the local TradeRecord ledger.
 
 3.2. Adding a Symbol Mapping
 1. User opens the mapping modal under a specific account. The market dropdown lists only markets the account is verified for.
@@ -134,3 +138,20 @@ Verification flags (set automatically at account create/update):
 
 5. Extension Points
 * Adding a new market (e.g. Margin, Options) = subclass MarketAdapter, register in the factory, and add the corresponding `<market>_enabled` flag plus verification call. Route handlers, UI fan-out, and ledger recording adapt automatically.
+
+6. Utility Tab
+The Utility tab houses helpers that support trading without being part of the bot's execution path. The current tab and its first sub-section are listed below; future utilities are expected to slot in as additional sub-sections.
+
+6.1. TradingView Alerts
+* Purpose: TradingView alerts expire after a fixed interval (typically ~2 months) and silently stop firing. The user logs each alert they have configured externally so the system can remind them before it dies.
+* Per-alert fields: symbol, timeframe, expires_at (UTC), optional name (strategy label), optional note.
+* CRUD endpoints under /api/utility/tv-alerts. Force-tick endpoint /api/utility/tv-alerts/check-now for manual testing from the UI.
+* Watcher: a background asyncio task (utility_watcher.run_utility_watcher_loop) launched in the FastAPI lifespan tick every 30 minutes. For each alert it evaluates:
+  - in the warn window (default 24h before expiry, all the way through to "already expired") → notify
+  - skip if notified within the last 12h (RENOTIFY_INTERVAL_HOURS) → prevents spam
+  - otherwise stamp notified_at after a successful Telegram send.
+* Notification: existing notifications.send_telegram is reused (so it honours the same telegram_enabled / token / chat_id settings as trade notifications). The message includes alert label, symbol, timeframe, relative time-to-expiry, absolute expires_at, and the user's note.
+* UI: sub-tab on /utility. Lists every logged alert sorted by expires_at ascending, colour-codes rows red (expired) / amber (<24h) / green (further out), shows last notified timestamp, supports add / edit / delete and a "Check Now" button that calls /check-now and re-renders.
+
+Non-Goals
+* The Utility tab does not subscribe to TradingView for real-time alert state; users must keep this log in sync manually when they edit alerts on tradingview.com.

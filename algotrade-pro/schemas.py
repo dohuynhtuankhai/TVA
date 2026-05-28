@@ -166,3 +166,35 @@ class DashboardData(BaseModel):
     total_available_margin: float
     avg_margin_utilization: float
     accounts: list[AccountBalanceSnapshot]
+
+
+# ── TradingView Alerts ──────────────────────────────────────────────────────
+
+class TVAlertCreate(BaseModel):
+    symbol: str = Field(..., min_length=1, max_length=40)
+    timeframe: str = Field(..., min_length=1, max_length=10)
+    expires_at: datetime  # ISO-8601 datetime with timezone (preferred UTC)
+    name: Optional[str] = Field(None, max_length=120)
+    note: Optional[str] = None
+
+
+class TVAlertUpdate(BaseModel):
+    symbol: Optional[str] = Field(None, min_length=1, max_length=40)
+    timeframe: Optional[str] = Field(None, min_length=1, max_length=10)
+    expires_at: Optional[datetime] = None
+    name: Optional[str] = Field(None, max_length=120)
+    note: Optional[str] = None
+
+
+class TVAlertResponse(BaseModel):
+    id: int
+    symbol: str
+    timeframe: str
+    name: Optional[str]
+    note: Optional[str]
+    expires_at: datetime
+    notified_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}Utility – AlgoTrade Pro{% endblock %}
+
+{% block content %}
+<div style="margin-bottom: 24px;">
+    <h2 style="font-size: 1.5rem; font-weight: 700;">Utility</h2>
+    <p style="color: #9ca3af; font-size: 0.875rem;">Out-of-context helpers — tooling that supports trading without being part of the bot's execution path.</p>
+</div>
+
+<!-- Sub-section tabs -->
+<div style="display: flex; gap: 8px; border-bottom: 1px solid #374151; margin-bottom: 20px;">
+    <button class="util-tab active" data-tab="tv-alerts" onclick="switchUtilTab('tv-alerts')">TradingView Alerts</button>
+</div>
+
+<!-- ── TradingView Alerts ─────────────────────────────────────────── -->
+<section id="util-tab-tv-alerts">
+    <div class="card" style="padding: 20px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+            <div>
+                <h3 style="font-size: 1.1rem; font-weight: 600;">TradingView Alerts</h3>
+                <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Log each TradingView alert with its symbol, timeframe, and expiry. A background watcher sends a Telegram nudge starting 24 h before expiry (and re-pings every 12 h until the row is updated or removed).</p>
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button class="btn-primary" style="background: #374151;" onclick="checkAlertsNow()">Check Now</button>
+                <button class="btn-primary" onclick="openAlertModal()">+ Add Alert</button>
+            </div>
+        </div>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Timeframe</th>
+                        <th>Name</th>
+                        <th>Expires (UTC)</th>
+                        <th>Status</th>
+                        <th>Last Notified</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="alertsBody">
+                    <tr><td colspan="7" style="text-align:center; color:#6b7280; padding: 24px;">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- Add / Edit Alert Modal -->
+<div class="modal-overlay" id="alertModal" role="dialog" aria-modal="true" aria-label="TradingView alert">
+    <div class="modal-content">
+        <h3 id="alertModalTitle" style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Add TradingView Alert</h3>
+        <form onsubmit="submitAlert(event)">
+            <input type="hidden" id="alertId">
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                <div>
+                    <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Symbol</label>
+                    <input class="input-field" id="alertSymbol" placeholder="e.g. BTCUSDT" required style="text-transform: uppercase;">
+                </div>
+                <div>
+                    <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Timeframe</label>
+                    <input class="input-field" id="alertTimeframe" placeholder="e.g. 5m, 1h, 4h, 1D" required>
+                </div>
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Expires at (UTC)</label>
+                <input class="input-field" id="alertExpires" type="datetime-local" required>
+                <p style="font-size:0.75rem; color:#6b7280; margin-top:4px;">TradingView typically expires alerts after ~2 months. Pick that exact date so the nudge fires in time.</p>
+            </div>
+
+            <div style="margin-bottom:12px;">
+                <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Name (optional)</label>
+                <input class="input-field" id="alertName" placeholder="e.g. SuperBE4 BTC 5m">
+            </div>
+
+            <div style="margin-bottom:16px;">
+                <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Note (optional)</label>
+                <textarea class="input-field" id="alertNote" rows="2" placeholder="What strategy / webhook is hooked to this alert?"></textarea>
+            </div>
+
+            <p id="alertError" style="font-size:0.8rem; color:#fca5a5; display:none; margin-bottom: 12px;"></p>
+            <div style="display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="btn-primary" style="background:#374151;" onclick="closeAlertModal()">Cancel</button>
+                <button type="submit" class="btn-primary">Save</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .util-tab { background: none; color: #9ca3af; border: none; padding: 8px 14px; cursor: pointer; font-size: 0.875rem; border-bottom: 2px solid transparent; }
+    .util-tab.active { color: #f9fafb; border-bottom-color: #2563eb; }
+    .alert-row-expired { background: rgba(127, 29, 29, 0.15); }
+    .alert-row-warning { background: rgba(120, 53, 15, 0.15); }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function switchUtilTab(name) {
+        document.querySelectorAll('.util-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+        document.querySelectorAll('[id^="util-tab-"]').forEach(s => {
+            s.style.display = s.id === `util-tab-${name}` ? 'block' : 'none';
+        });
+    }
+
+    function fmtRelative(expiresIso, now) {
+        const exp = new Date(expiresIso).getTime();
+        const diff = exp - now;
+        const abs = Math.abs(diff);
+        const h = Math.floor(abs / 3_600_000);
+        const m = Math.floor((abs % 3_600_000) / 60_000);
+        if (diff <= 0) return { label: `EXPIRED ${h}h${m}m ago`, klass: 'badge-red', rowClass: 'alert-row-expired' };
+        if (diff < 24 * 3_600_000) return { label: `in ${h}h${m}m`, klass: 'badge-yellow', rowClass: 'alert-row-warning' };
+        const d = Math.floor(h / 24);
+        return { label: `in ${d}d ${h % 24}h`, klass: 'badge-green', rowClass: '' };
+    }
+
+    async function loadAlerts() {
+        const res = await fetch('/api/utility/tv-alerts');
+        if (!res.ok) {
+            showToast('Failed to load alerts', 'error');
+            return;
+        }
+        const alerts = await res.json();
+        const tbody = document.getElementById('alertsBody');
+        if (alerts.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#6b7280; padding: 32px;">No TradingView alerts logged yet.</td></tr>';
+            return;
+        }
+        const now = Date.now();
+        tbody.innerHTML = alerts.map(a => {
+            const status = fmtRelative(a.expires_at, now);
+            const expFmt = new Date(a.expires_at).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+            const notifiedFmt = a.notified_at
+                ? new Date(a.notified_at).toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
+                : '<span style="color:#6b7280;">—</span>';
+            const payload = JSON.stringify(a).replace(/"/g, '&quot;');
+            return `<tr class="${status.rowClass}">
+                <td style="font-weight:500;">${esc(a.symbol)}</td>
+                <td>${esc(a.timeframe)}</td>
+                <td>${a.name ? esc(a.name) : '<span style="color:#6b7280;">—</span>'}</td>
+                <td style="font-size:0.8rem;">${esc(expFmt)}</td>
+                <td><span class="${status.klass}">${status.label}</span></td>
+                <td style="font-size:0.75rem; color:#9ca3af;">${notifiedFmt}</td>
+                <td>
+                    <button data-alert='${payload}' onclick='editAlert(this)' style="color:#2563eb; background:none; border:none; cursor:pointer; font-size:0.8rem;">Edit</button>
+                    <button onclick="deleteAlert(${a.id})" style="color:#ef4444; background:none; border:none; cursor:pointer; font-size:0.8rem;">Remove</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function openAlertModal() {
+        document.getElementById('alertModalTitle').textContent = 'Add TradingView Alert';
+        document.getElementById('alertId').value = '';
+        document.getElementById('alertSymbol').value = '';
+        document.getElementById('alertTimeframe').value = '';
+        document.getElementById('alertExpires').value = '';
+        document.getElementById('alertName').value = '';
+        document.getElementById('alertNote').value = '';
+        document.getElementById('alertError').style.display = 'none';
+        document.getElementById('alertModal').style.display = 'flex';
+    }
+
+    function editAlert(btn) {
+        const a = JSON.parse(btn.dataset.alert);
+        document.getElementById('alertModalTitle').textContent = 'Edit TradingView Alert';
+        document.getElementById('alertId').value = a.id;
+        document.getElementById('alertSymbol').value = a.symbol;
+        document.getElementById('alertTimeframe').value = a.timeframe;
+        // datetime-local needs `YYYY-MM-DDTHH:MM` in local TZ; show UTC value but in local input
+        const exp = new Date(a.expires_at);
+        const localIso = new Date(exp.getTime() - exp.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        document.getElementById('alertExpires').value = localIso;
+        document.getElementById('alertName').value = a.name || '';
+        document.getElementById('alertNote').value = a.note || '';
+        document.getElementById('alertError').style.display = 'none';
+        document.getElementById('alertModal').style.display = 'flex';
+    }
+
+    function closeAlertModal() { document.getElementById('alertModal').style.display = 'none'; }
+
+    async function submitAlert(e) {
+        e.preventDefault();
+        const id = document.getElementById('alertId').value;
+        const expiresLocal = document.getElementById('alertExpires').value;  // local TZ
+        const expiresIso = new Date(expiresLocal).toISOString();              // UTC ISO
+        const body = {
+            symbol: document.getElementById('alertSymbol').value.trim().toUpperCase(),
+            timeframe: document.getElementById('alertTimeframe').value.trim(),
+            expires_at: expiresIso,
+            name: document.getElementById('alertName').value.trim() || null,
+            note: document.getElementById('alertNote').value.trim() || null,
+        };
+        const url = id ? `/api/utility/tv-alerts/${id}` : '/api/utility/tv-alerts';
+        const method = id ? 'PUT' : 'POST';
+        const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) });
+        if (res.ok) {
+            closeAlertModal();
+            showToast(id ? 'Alert updated' : 'Alert added');
+            loadAlerts();
+        } else {
+            const err = await res.json().catch(() => ({}));
+            const el = document.getElementById('alertError');
+            el.textContent = err.detail || 'Error saving alert';
+            el.style.display = 'block';
+        }
+    }
+
+    async function deleteAlert(id) {
+        if (!confirm('Remove this TradingView alert from the log?')) return;
+        const res = await fetch(`/api/utility/tv-alerts/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            showToast('Alert removed');
+            loadAlerts();
+        } else {
+            showToast('Failed to remove alert', 'error');
+        }
+    }
+
+    async function checkAlertsNow() {
+        const res = await fetch('/api/utility/tv-alerts/check-now', { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            showToast(`Watcher tick complete — notified ${data.notified} alert${data.notified === 1 ? '' : 's'}.`);
+            loadAlerts();
+        } else {
+            showToast('Watcher tick failed', 'error');
+        }
+    }
+
+    loadAlerts();
+</script>
+{% endblock %}

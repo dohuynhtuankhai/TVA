@@ -3,11 +3,8 @@
 
 {% block content %}
 <div style="margin-bottom: 24px;">
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <h2 style="font-size: 1.5rem; font-weight: 700;">Bot Settings</h2>
-        <span class="market-pill">Futures + Spot</span>
-    </div>
-    <p style="color: #9ca3af; font-size: 0.875rem;">Global risk parameters and defaults for Futures and Spot accounts</p>
+    <h2 style="font-size: 1.5rem; font-weight: 700;">Bot Settings</h2>
+    <p style="color: #9ca3af; font-size: 0.875rem;">Global risk parameters and defaults for new accounts.</p>
 </div>
 
 <div class="card" style="padding: 24px; max-width: 600px;">
@@ -25,7 +22,7 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
             <div>
                 <p style="font-weight: 600;">Testnet Mode</p>
-                <p style="font-size: 0.8rem; color: #6b7280;">Trade with fake money on Binance Futures and Spot testnets</p>
+                <p style="font-size: 0.8rem; color: #6b7280;">Trade with fake money on Binance testnets.</p>
                 <p id="testnetWarning" style="font-size: 0.75rem; color: #fca5a5; margin-top: 4px; display: none;">
                     Turning this OFF means the bot will trade with REAL money
                 </p>
@@ -114,7 +111,7 @@
         </p>
         <ul style="font-size: 0.85rem; color: #d1d5db; margin-bottom: 20px; padding-left: 20px; list-style: disc;">
             <li style="margin-bottom: 6px;">The bot will execute trades with <strong style="color: #fca5a5;">real money</strong></li>
-            <li style="margin-bottom: 6px;">Make sure your live Binance Futures and Spot API keys are configured</li>
+            <li style="margin-bottom: 6px;">Make sure your live Binance API keys are configured for every market you plan to trade.</li>
             <li>Double-check your risk settings before enabling</li>
         </ul>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">

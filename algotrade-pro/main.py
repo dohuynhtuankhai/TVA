@@ -107,11 +107,22 @@ class AuthMiddleware:
 @asynccontextmanager
 async def lifespan(app):
     """Startup / shutdown lifecycle hook."""
+    import asyncio
+    from utility_watcher import run_utility_watcher_loop
+
     logger.info("Starting %s v%s", settings.APP_NAME, settings.APP_VERSION)
     await init_db()
     logger.info("Database initialised")
-    yield
-    logger.info("Shutting down %s", settings.APP_NAME)
+    watcher_task = asyncio.create_task(run_utility_watcher_loop())
+    try:
+        yield
+    finally:
+        logger.info("Shutting down %s", settings.APP_NAME)
+        watcher_task.cancel()
+        try:
+            await watcher_task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 # ── App ──────────────────────────────────────────────────────────────────────
@@ -140,6 +151,7 @@ from routes.settings import router as settings_router  # noqa: E402
 from routes.trades import router as trades_router      # noqa: E402
 from routes.dashboard import router as dashboard_router  # noqa: E402
 from routes.positions import router as positions_router  # noqa: E402
+from routes.utility import router as utility_router    # noqa: E402
 
 _app.include_router(auth_router)
 _app.include_router(webhook_router)
@@ -148,6 +160,7 @@ _app.include_router(settings_router)
 _app.include_router(trades_router)
 _app.include_router(dashboard_router)
 _app.include_router(positions_router)
+_app.include_router(utility_router)
 
 
 # ── Page routes (serve Jinja2 templates) ─────────────────────────────────────
@@ -196,6 +209,12 @@ async def page_webhook_logs(request: Request):
 async def page_settings(request: Request):
     template = jinja_env.get_template("settings.html")
     return HTMLResponse(template.render(page="settings"))
+
+
+@_app.get("/utility", response_class=HTMLResponse)
+async def page_utility(request: Request):
+    template = jinja_env.get_template("utility.html")
+    return HTMLResponse(template.render(page="utility"))
 
 
 # ── Health check ─────────────────────────────────────────────────────────────

@@ -4,11 +4,8 @@
 {% block content %}
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <h2 style="font-size: 1.5rem; font-weight: 700;">Exchange Accounts</h2>
-            <span class="market-pill">Futures + Spot</span>
-        </div>
-        <p style="color: #9ca3af; font-size: 0.875rem;">Manage Binance Futures and Spot API connections with account-level trading settings</p>
+        <h2 style="font-size: 1.5rem; font-weight: 700;">Exchange Accounts</h2>
+        <p style="color: #9ca3af; font-size: 0.875rem;">Manage Binance API connections and per-account trading settings.</p>
     </div>
     <button class="btn-primary" onclick="openAddModal()">+ Add Account</button>
 </div>
@@ -34,7 +31,7 @@
                 <label style="display: block; font-size: 0.875rem; color: #9ca3af; margin-bottom: 4px;">API Secret</label>
                 <input class="input-field" id="accSecret" type="password" placeholder="Binance API Secret" required>
             </div>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 12px;">Both Futures and Spot will be verified against this key. Trading settings are filled from your default Bot Settings and can be edited per account.</p>
+            <p style="font-size: 0.75rem; color: #6b7280; margin-bottom: 12px;">Every available Binance market will be verified against this key. Trading settings are filled from your default Bot Settings and can be edited per account.</p>
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                 <button type="button" class="btn-primary" style="background: #374151;" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save</button>
