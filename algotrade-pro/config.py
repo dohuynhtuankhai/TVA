@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    APP_NAME: str = "AlgoTrade Pro Engine"
+    APP_NAME: str = "AlgoPro Engine"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
 

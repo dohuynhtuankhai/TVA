@@ -23,7 +23,7 @@ from schemas import (
 )
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
-logger = logging.getLogger("algotrade.accounts")
+logger = logging.getLogger("algopro.accounts")
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

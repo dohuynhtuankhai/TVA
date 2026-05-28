@@ -15,7 +15,7 @@ from schemas import AccountBalanceSnapshot, DashboardData
 from websocket_manager import ws_manager
 
 router = APIRouter(tags=["dashboard"])
-logger = logging.getLogger("algotrade.dashboard")
+logger = logging.getLogger("algopro.dashboard")
 
 
 async def _fetch_account_market_balance(
@@ -103,7 +103,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     # Now check auth via session cookie
     from auth import validate_session
-    session_id = websocket.cookies.get("algotrade_session")
+    session_id = websocket.cookies.get("algopro_session")
     if not validate_session(session_id):
         await websocket.close(code=4001, reason="Not authenticated")
         return

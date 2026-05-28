@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models for AlgoTrade Pro."""
+"""SQLAlchemy ORM models for AlgoPro."""
 
 from datetime import datetime, timezone
 

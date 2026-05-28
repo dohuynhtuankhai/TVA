@@ -1,6 +1,6 @@
 //@version=5
 
-strategy("Super BE4 – AlgoTrade Pro", overlay=true, initial_capital=1000)
+strategy("Super BE4 – AlgoPro", overlay=true, initial_capital=1000)
 
 // =========================================================================
 
@@ -134,7 +134,7 @@ if long_signal
 
     strategy.entry("Long", strategy.long, qty=pos_size)
 
-    // JSON webhook for AlgoTrade Pro
+    // JSON webhook for AlgoPro
     alert('{"symbol":"' + syminfo.ticker + '","action":"LONG","timeframe":"' + timeframe.period + '","price":' + str.tostring(close) + '}', alert.freq_all)
 
     if show_tags
@@ -149,7 +149,7 @@ if short_signal
 
     strategy.entry("Short", strategy.short, qty=pos_size)
 
-    // JSON webhook for AlgoTrade Pro
+    // JSON webhook for AlgoPro
     alert('{"symbol":"' + syminfo.ticker + '","action":"SHORT","timeframe":"' + timeframe.period + '","price":' + str.tostring(close) + '}', alert.freq_all)
 
     if show_tags
@@ -194,7 +194,7 @@ if strategy.closedtrades > strategy.closedtrades[1]
 
     float pnl_pct = trade_id == "Long" ? ((exit_price - entry_price) / entry_price) * 100 : ((entry_price - exit_price) / entry_price) * 100
 
-    // JSON webhook for AlgoTrade Pro — EXIT signal
+    // JSON webhook for AlgoPro — EXIT signal
     alert('{"symbol":"' + syminfo.ticker + '","action":"EXIT","timeframe":"' + timeframe.period + '","price":' + str.tostring(exit_price) + '}', alert.freq_all)
 
     if show_tags

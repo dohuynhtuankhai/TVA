@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from config import settings
 
-logger = logging.getLogger("algotrade.database")
+logger = logging.getLogger("algopro.database")
 
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
 

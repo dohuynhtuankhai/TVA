@@ -16,7 +16,7 @@ from models import ExchangeAccount, TradeRecord
 from websocket_manager import ws_manager
 
 router = APIRouter(prefix="/api/positions", tags=["positions"])
-logger = logging.getLogger("algotrade.positions")
+logger = logging.getLogger("algopro.positions")
 
 
 async def _fetch_account_market_positions(

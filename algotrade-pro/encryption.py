@@ -8,7 +8,7 @@ from cryptography.fernet import Fernet, InvalidToken
 
 from config import settings
 
-logger = logging.getLogger("algotrade.encryption")
+logger = logging.getLogger("algopro.encryption")
 
 
 def _derive_key(passphrase: str) -> bytes:

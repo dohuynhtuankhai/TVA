@@ -1,4 +1,4 @@
-"""Unit tests derived from the AlgoTrade Pro PRD (Futures + Spot Edition V1).
+"""Unit tests derived from the AlgoPro PRD (Futures + Spot Edition V1).
 
 Each test cites the PRD section it covers. Tests are pure-logic / mocked —
 no real Binance, no real DB.

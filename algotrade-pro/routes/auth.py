@@ -10,9 +10,9 @@ from auth import create_session, destroy_session, verify_credentials
 from config import settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
-logger = logging.getLogger("algotrade.auth")
+logger = logging.getLogger("algopro.auth")
 
-COOKIE_NAME = "algotrade_session"
+COOKIE_NAME = "algopro_session"
 
 # ── Rate limiting ───────────────────────────────────────────────────────────
 # Track failed login attempts per IP

@@ -1,4 +1,4 @@
-"""AlgoTrade Pro Engine – main application entry point."""
+"""AlgoPro Engine – main application entry point."""
 
 import logging
 import sys
@@ -55,7 +55,7 @@ logger = logging.getLogger("algotrade")
 PUBLIC_PATHS = {"/login", "/api/auth/login", "/api/webhook", "/ws"}
 PUBLIC_PREFIXES = ("/static/",)
 
-COOKIE_NAME = "algotrade_session"
+COOKIE_NAME = "algopro_session"
 
 
 class AuthMiddleware:

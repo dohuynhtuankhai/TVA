@@ -11,7 +11,7 @@ from database import get_db
 from models import BotSettings
 from schemas import BotSettingsResponse, BotSettingsUpdate
 
-logger = logging.getLogger("algotrade.settings")
+logger = logging.getLogger("algopro.settings")
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 MASKED_TOKEN = "••••••••"
@@ -110,7 +110,7 @@ async def test_telegram(db: AsyncSession = Depends(get_db)):
         url = f"https://api.telegram.org/bot{settings.telegram_bot_token}/sendMessage"
         payload = {
             "chat_id": settings.telegram_chat_id,
-            "text": "✅ AlgoTrade Pro — Telegram connected!",
+            "text": "✅ AlgoPro — Telegram connected!",
         }
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:

@@ -4,7 +4,7 @@ import json
 import logging
 from fastapi import WebSocket
 
-logger = logging.getLogger("algotrade.ws")
+logger = logging.getLogger("algopro.ws")
 
 
 class ConnectionManager:

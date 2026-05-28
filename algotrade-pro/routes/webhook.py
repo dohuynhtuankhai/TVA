@@ -19,7 +19,7 @@ from schemas import WebhookPayload
 from websocket_manager import ws_manager
 
 router = APIRouter(prefix="/api", tags=["webhook"])
-logger = logging.getLogger("algotrade.webhook")
+logger = logging.getLogger("algopro.webhook")
 
 
 # ── Timeframe mapping ─────────────────────────────────────────────────────

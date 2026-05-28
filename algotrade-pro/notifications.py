@@ -7,7 +7,7 @@ import aiohttp
 
 from config import settings
 
-logger = logging.getLogger("algotrade.notifications")
+logger = logging.getLogger("algopro.notifications")
 
 
 async def _get_telegram_config() -> tuple[str, str] | None:

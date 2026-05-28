@@ -13,7 +13,7 @@ from encryption import decrypt_secret
 from market_adapters import create_market_adapter, normalize_market_type
 from models import ExchangeAccount, TradeRecord
 
-logger = logging.getLogger("algotrade.trades")
+logger = logging.getLogger("algopro.trades")
 
 router = APIRouter(prefix="/api/trades", tags=["trades"])
 

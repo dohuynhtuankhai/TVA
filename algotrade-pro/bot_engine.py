@@ -21,7 +21,7 @@ from encryption import decrypt_secret
 from models import BotSettings, DailyPnl, ExchangeAccount, SymbolMapping, TradeRecord
 from schemas import WebhookPayload
 
-logger = logging.getLogger("algotrade.bot_engine")
+logger = logging.getLogger("algopro.bot_engine")
 
 
 def _market_type(account: ExchangeAccount) -> str:

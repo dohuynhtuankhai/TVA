@@ -25,7 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from config import settings
 from models import ExchangeAccount, SymbolMapping, TradeRecord
 
-logger = logging.getLogger("algotrade.market_adapters")
+logger = logging.getLogger("algopro.market_adapters")
 
 
 # ── Helpers ────────────────────────────────────────────────────────────

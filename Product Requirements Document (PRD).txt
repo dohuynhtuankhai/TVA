@@ -1,9 +1,9 @@
 Product Requirements Document (PRD)
-Product Name: AlgoTrade Pro Engine - Futures + Spot Edition (V2)
+Product Name: AlgoPro Engine - Futures + Spot Edition (V2)
 Target User: Algorithmic traders managing multiple Binance Futures and Binance Spot accounts using TradingView strategies.
 
 1. Product Overview
-AlgoTrade Pro is a local, self-hosted SaaS application that bridges TradingView chart algorithms to Binance accounts. A single Binance account (one API key/secret) can trade both Futures and Spot from the same configuration row. The product makes Futures and Spot visually distinct everywhere a market choice matters, but never forces the trader to register the same key twice.
+AlgoPro is a local, self-hosted SaaS application that bridges TradingView chart algorithms to Binance accounts. A single Binance account (one API key/secret) can trade both Futures and Spot from the same configuration row. The product makes Futures and Spot visually distinct everywhere a market choice matters, but never forces the trader to register the same key twice.
 
 2. Core Components
 

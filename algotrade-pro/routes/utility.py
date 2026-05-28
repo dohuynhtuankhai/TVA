@@ -14,7 +14,7 @@ from models import TradingViewAlert
 from schemas import TVAlertCreate, TVAlertResponse, TVAlertUpdate
 
 router = APIRouter(prefix="/api/utility", tags=["utility"])
-logger = logging.getLogger("algotrade.utility")
+logger = logging.getLogger("algopro.utility")
 
 
 def _ensure_utc(dt: datetime) -> datetime:

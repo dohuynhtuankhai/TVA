@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import async_session
 from models import TradingViewAlert
 
-logger = logging.getLogger("algotrade.utility_watcher")
+logger = logging.getLogger("algopro.utility_watcher")
 
 # Tunables
 TICK_INTERVAL_SECONDS = 30 * 60  # check every 30 min
