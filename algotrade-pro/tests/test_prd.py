@@ -575,15 +575,30 @@ class TestFuturesFetchRemoteTradesSeed:
         from market_adapters import FuturesAdapter
 
         client = MagicMock()
+        # Only currently-open positions are enumerated (Binance returns a row
+        # per listed perp, so we must filter to positionAmt != 0).
         client.futures_position_information = AsyncMock(return_value=[
-            {"symbol": "BTCUSDT", "positionAmt": "0.05"},     # open
-            {"symbol": "ETHUSDT", "positionAmt": "0"},        # closed but seen
+            {"symbol": "BTCUSDT", "positionAmt": "0.05"},     # open → seed
+            {"symbol": "ETHUSDT", "positionAmt": "0"},        # ignored here
+            {"symbol": "OTHERUSDT", "positionAmt": "0"},      # ignored here
         ])
-        client.futures_income_history = AsyncMock(return_value=[
-            {"symbol": "SOLUSDT", "income": "1.2", "incomeType": "REALIZED_PNL"},
-            {"symbol": "BTCUSDT", "income": "0.5", "incomeType": "FUNDING_FEE"},
-            {"symbol": "",       "income": "0.1", "incomeType": "TRANSFER"},  # no symbol → skip
-        ])
+
+        # Closed-but-touched symbols (ETHUSDT) come from income history.
+        # Non-ASCII symbol must be filtered out before the per-symbol loop.
+        income_pages = [
+            [
+                {"symbol": "SOLUSDT", "income": "1.2", "incomeType": "REALIZED_PNL"},
+                {"symbol": "ETHUSDT", "income": "0.5", "incomeType": "REALIZED_PNL"},
+                {"symbol": "币安USDT", "income": "0.1", "incomeType": "FUNDING_FEE"},
+                {"symbol": "",        "income": "0.1", "incomeType": "TRANSFER"},
+            ],
+            [],  # stop paging on empty page
+        ]
+
+        async def fake_income(**kwargs):
+            return income_pages.pop(0) if income_pages else []
+
+        client.futures_income_history = AsyncMock(side_effect=fake_income)
 
         queried: list[str] = []
 
@@ -612,7 +627,9 @@ class TestFuturesFetchRemoteTradesSeed:
 
         trades = await adapter.fetch_remote_trades(account, db)
         assert trades == []
-        # Closed-but-touched ETHUSDT must also be queried so old trades are recoverable.
+        # BTCUSDT from open positions; ETHUSDT + SOLUSDT from income history;
+        # 币安USDT excluded by ASCII filter (signature breakage); OTHERUSDT
+        # excluded because it's a flat position (positionAmt = 0).
         assert set(queried) == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
 
     async def test_continues_when_one_symbol_errors(self):

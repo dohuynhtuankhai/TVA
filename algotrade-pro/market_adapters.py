@@ -458,40 +458,57 @@ class FuturesAdapter(MarketAdapter):
         )
         symbols.update(configured.scalars().all())
 
+        # `futures_position_information` returns a row for EVERY listed perp
+        # (~750+ symbols on Binance), so enumerating it here would flood the
+        # loop. Only include rows the user is actively holding right now.
         try:
-            # Binance Futures returns one row per symbol the account has ever
-            # touched (positionAmt may be 0 for closed positions). Include
-            # them all so symbols with past closed trades are still queried.
             positions = await self.client.futures_position_information()
             for p in positions:
                 sym = p.get("symbol")
-                if sym:
+                if sym and float(p.get("positionAmt", 0) or 0) != 0:
                     symbols.add(sym)
         except Exception as e:
             logger.warning(
                 "Futures positions seed failed for '%s': %s", account.name, e
             )
 
+        # Income history is the authoritative source for "symbols the user
+        # has ever touched": every realized PnL or funding fee row carries
+        # a symbol. Default window is 7 days; we pull up to ~2 years in
+        # 90-day pages to recover older accounts.
         try:
-            # Default income window is 7 days. Pull ~6 months back so older
-            # realized PnL / funding rows still surface their symbols.
-            start_ms = int(
-                (datetime.now(timezone.utc) - timedelta(days=180)).timestamp() * 1000
-            )
-            income = await self.client.futures_income_history(
-                startTime=start_ms, limit=1000,
-            )
-            for row in income:
-                sym = row.get("symbol")
-                if sym:
-                    symbols.add(sym)
+            now = datetime.now(timezone.utc)
+            page_days = 90
+            max_pages = 8  # ~720 days
+            for i in range(max_pages):
+                end_ms = int((now - timedelta(days=page_days * i)).timestamp() * 1000)
+                start_ms = int(
+                    (now - timedelta(days=page_days * (i + 1))).timestamp() * 1000
+                )
+                page = await self.client.futures_income_history(
+                    startTime=start_ms, endTime=end_ms, limit=1000,
+                )
+                if not page:
+                    break
+                for row in page:
+                    sym = row.get("symbol")
+                    if sym:
+                        symbols.add(sym)
         except Exception as e:
             logger.warning(
                 "Futures income seed failed for '%s': %s", account.name, e
             )
 
+        # Binance signs every request including the symbol — non-ASCII
+        # symbols (e.g. CJK chars showing up in testnet listings) break the
+        # signature with -1022. Filter to ASCII-clean tickers.
+        symbols = {
+            s for s in symbols
+            if s and s.isascii() and all(c.isalnum() for c in s)
+        }
+
         logger.info(
-            "Futures sync for '%s': %d candidate symbol(s): %s",
+            "Futures sync for '%s': %d candidate symbol(s) (sample): %s",
             account.name, len(symbols), sorted(symbols)[:20],
         )
 
