@@ -52,7 +52,9 @@
             <option value="SHORT">Short</option>
             <option value="BUY">Buy</option>
             <option value="SELL">Sell</option>
-            <option value="EXIT">Exit</option>
+            <option value="EXIT">Exit (any)</option>
+            <option value="EXIT_LONG">Exit Long</option>
+            <option value="EXIT_SHORT">Exit Short</option>
         </select>
         <select class="input-field" id="filterStatus" style="max-width: 120px;">
             <option value="">All statuses</option>
@@ -146,11 +148,23 @@
 
         const accId = document.getElementById('filterAccount').value;
         const symbol = document.getElementById('filterSymbol').value;
-        const side = document.getElementById('filterSide').value;
-        const action = document.getElementById('filterAction').value;
+        let side = document.getElementById('filterSide').value;
+        let action = document.getElementById('filterAction').value;
         const status = document.getElementById('filterStatus').value;
         const dateFrom = document.getElementById('filterDateFrom').value;
         const dateTo = document.getElementById('filterDateTo').value;
+
+        // Synthetic action filters: EXIT_LONG / EXIT_SHORT map to action=EXIT
+        // combined with a derived side (closing a long fires SELL, shorting
+        // closes with BUY). If the user has also chosen a side filter we
+        // keep that one and fall back to plain EXIT.
+        if (action === 'EXIT_LONG') {
+            action = 'EXIT';
+            if (!side) side = 'SELL';
+        } else if (action === 'EXIT_SHORT') {
+            action = 'EXIT';
+            if (!side) side = 'BUY';
+        }
 
         if (accId) params.set('account_id', accId);
         if (symbol) params.set('symbol', symbol);
@@ -189,7 +203,15 @@
             else if (t.action === 'SHORT') actionBadge = '<span class="badge-red">SHORT</span>';
             else if (t.action === 'BUY' || t.action === 'ENTRY') actionBadge = '<span class="badge-green">BUY</span>';
             else if (t.action === 'SELL') actionBadge = '<span class="badge-red">SELL</span>';
-            else if (t.action === 'EXIT') actionBadge = '<span class="badge-yellow">EXIT</span>';
+            else if (t.action === 'EXIT') {
+                // Futures EXIT: closing side = SELL means the position was LONG, BUY means SHORT.
+                // Spot EXIT is always selling a held bag → treated as Exit Long.
+                let label = 'EXIT';
+                if (t.market_type === 'spot') label = 'Exit Long';
+                else if (t.side === 'SELL') label = 'Exit Long';
+                else if (t.side === 'BUY') label = 'Exit Short';
+                actionBadge = `<span class="badge-yellow">${label}</span>`;
+            }
             else actionBadge = esc(t.action) || '—';
             const marketBadge = t.market_type === 'spot'
                 ? '<span class="market-pill">Spot 1x</span>'
@@ -213,14 +235,26 @@
         loadStats();
     }
 
+    function toYMD(d) { return d.toISOString().slice(0, 10); }
+    function defaultDateRange() {
+        const today = new Date();
+        const weekAgo = new Date(today.getTime() - 7 * 86_400_000);
+        return { from: toYMD(weekAgo), to: toYMD(today) };
+    }
+
+    function applyDefaultDateRange() {
+        const { from, to } = defaultDateRange();
+        document.getElementById('filterDateFrom').value = from;
+        document.getElementById('filterDateTo').value = to;
+    }
+
     function resetFilters() {
         document.getElementById('filterAccount').value = '';
         document.getElementById('filterSymbol').value = '';
         document.getElementById('filterSide').value = '';
         document.getElementById('filterAction').value = '';
         document.getElementById('filterStatus').value = '';
-        document.getElementById('filterDateFrom').value = '';
-        document.getElementById('filterDateTo').value = '';
+        applyDefaultDateRange();
         currentPage = 0;
         loadTrades();
     }
@@ -252,6 +286,7 @@
         btn.textContent = 'Sync from Binance';
     }
 
+    applyDefaultDateRange();
     loadAccountFilter();
     loadTrades();
 </script>
