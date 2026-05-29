@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from binance import AsyncClient
 from binance.enums import (
@@ -459,19 +459,28 @@ class FuturesAdapter(MarketAdapter):
         symbols.update(configured.scalars().all())
 
         try:
+            # Binance Futures returns one row per symbol the account has ever
+            # touched (positionAmt may be 0 for closed positions). Include
+            # them all so symbols with past closed trades are still queried.
             positions = await self.client.futures_position_information()
             for p in positions:
-                if float(p.get("positionAmt", 0)) != 0:
-                    symbols.add(p["symbol"])
+                sym = p.get("symbol")
+                if sym:
+                    symbols.add(sym)
         except Exception as e:
             logger.warning(
                 "Futures positions seed failed for '%s': %s", account.name, e
             )
 
         try:
-            # 7-day window is the default; pull a wider window so older
-            # closed trades are still recoverable on first sync.
-            income = await self.client.futures_income_history(limit=1000)
+            # Default income window is 7 days. Pull ~6 months back so older
+            # realized PnL / funding rows still surface their symbols.
+            start_ms = int(
+                (datetime.now(timezone.utc) - timedelta(days=180)).timestamp() * 1000
+            )
+            income = await self.client.futures_income_history(
+                startTime=start_ms, limit=1000,
+            )
             for row in income:
                 sym = row.get("symbol")
                 if sym:
@@ -480,6 +489,11 @@ class FuturesAdapter(MarketAdapter):
             logger.warning(
                 "Futures income seed failed for '%s': %s", account.name, e
             )
+
+        logger.info(
+            "Futures sync for '%s': %d candidate symbol(s): %s",
+            account.name, len(symbols), sorted(symbols)[:20],
+        )
 
         normalized: list[dict] = []
         for symbol in symbols:

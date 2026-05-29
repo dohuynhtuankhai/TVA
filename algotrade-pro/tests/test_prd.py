@@ -576,13 +576,13 @@ class TestFuturesFetchRemoteTradesSeed:
 
         client = MagicMock()
         client.futures_position_information = AsyncMock(return_value=[
-            {"symbol": "BTCUSDT", "positionAmt": "0.05"},     # open → seed
-            {"symbol": "ETHUSDT", "positionAmt": "0"},        # flat → skip
+            {"symbol": "BTCUSDT", "positionAmt": "0.05"},     # open
+            {"symbol": "ETHUSDT", "positionAmt": "0"},        # closed but seen
         ])
         client.futures_income_history = AsyncMock(return_value=[
             {"symbol": "SOLUSDT", "income": "1.2", "incomeType": "REALIZED_PNL"},
             {"symbol": "BTCUSDT", "income": "0.5", "incomeType": "FUNDING_FEE"},
-            {"symbol": "",       "income": "0.1", "incomeType": "FUNDING_FEE"},  # no symbol → skip
+            {"symbol": "",       "income": "0.1", "incomeType": "TRANSFER"},  # no symbol → skip
         ])
 
         queried: list[str] = []
@@ -612,7 +612,8 @@ class TestFuturesFetchRemoteTradesSeed:
 
         trades = await adapter.fetch_remote_trades(account, db)
         assert trades == []
-        assert set(queried) == {"BTCUSDT", "SOLUSDT"}
+        # Closed-but-touched ETHUSDT must also be queried so old trades are recoverable.
+        assert set(queried) == {"BTCUSDT", "ETHUSDT", "SOLUSDT"}
 
     async def test_continues_when_one_symbol_errors(self):
         """A 4xx for one symbol (e.g. delisted) must not abort the whole sync."""
