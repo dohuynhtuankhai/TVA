@@ -560,3 +560,98 @@ class TestTVAlertCreateSchema:
             expires_at="2099-01-01T00:00:00+00:00",
         )
         assert a.symbol == "BTCUSDT"
+
+
+# ──────────────────────────────────────────────────────────────────────────
+# FuturesAdapter.fetch_remote_trades — seed symbols from positions + income
+# ──────────────────────────────────────────────────────────────────────────
+
+class TestFuturesFetchRemoteTradesSeed:
+    async def test_seeds_symbols_from_positions_and_income(self):
+        """Binance Futures `futures_account_trades` requires a `symbol` param,
+        so the sync must discover candidate symbols from current positions and
+        income history; otherwise a brand-new account would silently import zero
+        trades."""
+        from market_adapters import FuturesAdapter
+
+        client = MagicMock()
+        client.futures_position_information = AsyncMock(return_value=[
+            {"symbol": "BTCUSDT", "positionAmt": "0.05"},     # open → seed
+            {"symbol": "ETHUSDT", "positionAmt": "0"},        # flat → skip
+        ])
+        client.futures_income_history = AsyncMock(return_value=[
+            {"symbol": "SOLUSDT", "income": "1.2", "incomeType": "REALIZED_PNL"},
+            {"symbol": "BTCUSDT", "income": "0.5", "incomeType": "FUNDING_FEE"},
+            {"symbol": "",       "income": "0.1", "incomeType": "FUNDING_FEE"},  # no symbol → skip
+        ])
+
+        queried: list[str] = []
+
+        async def fake_trades(symbol):
+            queried.append(symbol)
+            return []
+
+        client.futures_account_trades = AsyncMock(side_effect=fake_trades)
+
+        adapter = FuturesAdapter(client)
+        account = SimpleNamespace(id=1, name="fut-acc", leverage=10)
+
+        # Fake DB — no existing ledger or mappings
+        class FakeResult:
+            def scalars(self):
+                class S:
+                    def all(self_inner):
+                        return []
+                return S()
+
+        async def fake_execute(*args, **kwargs):
+            return FakeResult()
+
+        db = MagicMock()
+        db.execute = fake_execute
+
+        trades = await adapter.fetch_remote_trades(account, db)
+        assert trades == []
+        assert set(queried) == {"BTCUSDT", "SOLUSDT"}
+
+    async def test_continues_when_one_symbol_errors(self):
+        """A 4xx for one symbol (e.g. delisted) must not abort the whole sync."""
+        from market_adapters import FuturesAdapter
+
+        client = MagicMock()
+        client.futures_position_information = AsyncMock(return_value=[
+            {"symbol": "BTCUSDT", "positionAmt": "0.1"},
+            {"symbol": "BADCOIN", "positionAmt": "0.1"},
+        ])
+        client.futures_income_history = AsyncMock(return_value=[])
+
+        async def fake_trades(symbol):
+            if symbol == "BADCOIN":
+                raise Exception("Invalid symbol")
+            return [{
+                "symbol": symbol, "side": "BUY", "qty": "0.1", "price": "60000",
+                "time": 1_700_000_000_000, "realizedPnl": "0", "reduceOnly": False,
+            }]
+
+        client.futures_account_trades = AsyncMock(side_effect=fake_trades)
+
+        adapter = FuturesAdapter(client)
+        account = SimpleNamespace(id=1, name="acc", leverage=5)
+
+        class FakeResult:
+            def scalars(self):
+                class S:
+                    def all(self_inner):
+                        return []
+                return S()
+
+        async def fake_execute(*args, **kwargs):
+            return FakeResult()
+
+        db = MagicMock()
+        db.execute = fake_execute
+
+        trades = await adapter.fetch_remote_trades(account, db)
+        assert len(trades) == 1
+        assert trades[0]["symbol"] == "BTCUSDT"
+        assert trades[0]["leverage"] == 5

@@ -438,24 +438,75 @@ class FuturesAdapter(MarketAdapter):
     async def fetch_remote_trades(
         self, account: ExchangeAccount, db: AsyncSession
     ) -> list[dict]:
-        raw = await self.client.futures_account_trades()
+        # Binance Futures `GET /fapi/v1/userTrades` requires `symbol`. We
+        # discover relevant symbols from: existing TradeRecord rows for this
+        # account, configured mappings, currently open positions, and the
+        # account's recent income history (realized PnL + funding fees).
+        symbols: set[str] = set()
+
+        history_symbols = await db.execute(
+            select(TradeRecord.symbol)
+            .where(TradeRecord.account_id == account.id)
+            .distinct()
+        )
+        symbols.update(history_symbols.scalars().all())
+
+        configured = await db.execute(
+            select(SymbolMapping.symbol).where(
+                SymbolMapping.account_id == account.id
+            )
+        )
+        symbols.update(configured.scalars().all())
+
+        try:
+            positions = await self.client.futures_position_information()
+            for p in positions:
+                if float(p.get("positionAmt", 0)) != 0:
+                    symbols.add(p["symbol"])
+        except Exception as e:
+            logger.warning(
+                "Futures positions seed failed for '%s': %s", account.name, e
+            )
+
+        try:
+            # 7-day window is the default; pull a wider window so older
+            # closed trades are still recoverable on first sync.
+            income = await self.client.futures_income_history(limit=1000)
+            for row in income:
+                sym = row.get("symbol")
+                if sym:
+                    symbols.add(sym)
+        except Exception as e:
+            logger.warning(
+                "Futures income seed failed for '%s': %s", account.name, e
+            )
+
         normalized: list[dict] = []
-        for t in raw:
-            side = t["side"]
-            realized_pnl = float(t.get("realizedPnl", 0))
-            action = "LONG" if side == "BUY" else "SHORT"
-            if t.get("reduceOnly", False) or realized_pnl != 0:
-                action = "EXIT"
-            normalized.append({
-                "symbol": t["symbol"],
-                "time": datetime.fromtimestamp(t["time"] / 1000, tz=timezone.utc),
-                "price": float(t["price"]),
-                "quantity": float(t["qty"]),
-                "side": side,
-                "action": action,
-                "realized_pnl": round(realized_pnl, 2),
-                "leverage": account.leverage,
-            })
+        for symbol in symbols:
+            try:
+                raw = await self.client.futures_account_trades(symbol=symbol)
+            except Exception as e:
+                logger.warning(
+                    "Futures sync skipped %s for '%s': %s",
+                    symbol, account.name, e,
+                )
+                continue
+            for t in raw:
+                side = t["side"]
+                realized_pnl = float(t.get("realizedPnl", 0))
+                action = "LONG" if side == "BUY" else "SHORT"
+                if t.get("reduceOnly", False) or realized_pnl != 0:
+                    action = "EXIT"
+                normalized.append({
+                    "symbol": t["symbol"],
+                    "time": datetime.fromtimestamp(t["time"] / 1000, tz=timezone.utc),
+                    "price": float(t["price"]),
+                    "quantity": float(t["qty"]),
+                    "side": side,
+                    "action": action,
+                    "realized_pnl": round(realized_pnl, 2),
+                    "leverage": account.leverage,
+                })
         return normalized
 
     async def verify_credentials(self, is_testnet: bool) -> bool:
