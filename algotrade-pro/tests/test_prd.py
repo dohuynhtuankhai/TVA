@@ -602,9 +602,9 @@ class TestFuturesFetchRemoteTradesSeed:
 
         queried: list[str] = []
 
-        async def fake_trades(symbol):
-            queried.append(symbol)
-            return []
+        async def fake_trades(**kwargs):
+            queried.append(kwargs.get("symbol"))
+            return []  # empty page -> sync moves on after one chunk
 
         client.futures_account_trades = AsyncMock(side_effect=fake_trades)
 
@@ -643,9 +643,17 @@ class TestFuturesFetchRemoteTradesSeed:
         ])
         client.futures_income_history = AsyncMock(return_value=[])
 
-        async def fake_trades(symbol):
+        emitted: set[str] = set()
+
+        async def fake_trades(**kwargs):
+            symbol = kwargs.get("symbol")
             if symbol == "BADCOIN":
                 raise Exception("Invalid symbol")
+            # Emit one row per symbol on the first window only; later
+            # windows return empty so pagination terminates quickly.
+            if symbol in emitted:
+                return []
+            emitted.add(symbol)
             return [{
                 "symbol": symbol, "side": "BUY", "qty": "0.1", "price": "60000",
                 "time": 1_700_000_000_000, "realizedPnl": "0", "reduceOnly": False,

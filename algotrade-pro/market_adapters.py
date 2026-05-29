@@ -512,32 +512,62 @@ class FuturesAdapter(MarketAdapter):
             account.name, len(symbols), sorted(symbols)[:20],
         )
 
+        # Binance Futures userTrades has a hard 7-day window per call when
+        # using startTime/endTime, and returns only the last ~7 days when
+        # the caller passes no time range. Page each symbol backwards in
+        # 7-day chunks so older trades are still imported on first sync.
+        now = datetime.now(timezone.utc)
+        chunk = timedelta(days=7)
+        max_chunks = 26  # ~6 months per symbol on first sync
+
         normalized: list[dict] = []
         for symbol in symbols:
-            try:
-                raw = await self.client.futures_account_trades(symbol=symbol)
-            except Exception as e:
-                logger.warning(
-                    "Futures sync skipped %s for '%s': %s",
-                    symbol, account.name, e,
+            symbol_count = 0
+            stop = False
+            for i in range(max_chunks):
+                if stop:
+                    break
+                end_ms = int((now - chunk * i).timestamp() * 1000)
+                start_ms = int((now - chunk * (i + 1)).timestamp() * 1000)
+                try:
+                    raw = await self.client.futures_account_trades(
+                        symbol=symbol, startTime=start_ms, endTime=end_ms, limit=1000,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Futures sync skipped %s for '%s': %s",
+                        symbol, account.name, e,
+                    )
+                    break
+                if not raw:
+                    # No trades in this window. Stop paging this symbol once
+                    # we've already imported at least one — older history
+                    # might still exist beyond an unrelated gap.
+                    if symbol_count > 0:
+                        stop = True
+                    continue
+                symbol_count += len(raw)
+                for t in raw:
+                    side = t["side"]
+                    realized_pnl = float(t.get("realizedPnl", 0))
+                    action = "LONG" if side == "BUY" else "SHORT"
+                    if t.get("reduceOnly", False) or realized_pnl != 0:
+                        action = "EXIT"
+                    normalized.append({
+                        "symbol": t["symbol"],
+                        "time": datetime.fromtimestamp(t["time"] / 1000, tz=timezone.utc),
+                        "price": float(t["price"]),
+                        "quantity": float(t["qty"]),
+                        "side": side,
+                        "action": action,
+                        "realized_pnl": round(realized_pnl, 2),
+                        "leverage": account.leverage,
+                    })
+            if symbol_count:
+                logger.info(
+                    "Futures sync '%s' / %s: collected %d trade row(s)",
+                    account.name, symbol, symbol_count,
                 )
-                continue
-            for t in raw:
-                side = t["side"]
-                realized_pnl = float(t.get("realizedPnl", 0))
-                action = "LONG" if side == "BUY" else "SHORT"
-                if t.get("reduceOnly", False) or realized_pnl != 0:
-                    action = "EXIT"
-                normalized.append({
-                    "symbol": t["symbol"],
-                    "time": datetime.fromtimestamp(t["time"] / 1000, tz=timezone.utc),
-                    "price": float(t["price"]),
-                    "quantity": float(t["qty"]),
-                    "side": side,
-                    "action": action,
-                    "realized_pnl": round(realized_pnl, 2),
-                    "leverage": account.leverage,
-                })
         return normalized
 
     async def verify_credentials(self, is_testnet: bool) -> bool:
