@@ -97,10 +97,15 @@
     }
 
     async function loadPositions() {
+        const tbody = document.getElementById('positionsBody');
         try {
             const res = await fetch('/api/positions/');
+            if (!res.ok) {
+                const errText = await res.text().catch(() => '');
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:#fca5a5; padding:32px;">API error ${res.status}: ${esc(errText.slice(0,200))}</td></tr>`;
+                return;
+            }
             const positions = await res.json();
-            const tbody = document.getElementById('positionsBody');
 
             document.getElementById('totalPositions').textContent = positions.length;
             const totalNotional = positions.reduce((s, p) => s + p.notional, 0);
@@ -148,6 +153,7 @@
                 </tr>`;
             }).join('');
         } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:#fca5a5; padding:32px;">Render error: ${esc(String(e && e.message || e))}</td></tr>`;
             showToast('Failed to load positions', 'error');
         }
     }

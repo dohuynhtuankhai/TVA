@@ -37,7 +37,8 @@ async def _fetch_account_market_positions(
             return await adapter.fetch_positions(acct, worker_db)
     except Exception as e:
         logger.error(
-            "Failed to fetch %s positions for %s: %s", market_type, acct.name, e
+            "Failed to fetch %s positions for '%s': %s",
+            market_type, acct.name, e, exc_info=True,
         )
         return []
     finally:
@@ -64,16 +65,59 @@ async def get_open_positions(db: AsyncSession = Depends(get_db)):
     )
     accounts = result.scalars().all()
 
-    tasks = [
-        _fetch_account_market_positions(acct, market)
-        for acct in accounts
-        for market in _enabled_markets(acct)
-    ]
-    results = await asyncio.gather(*tasks) if tasks else []
+    if not accounts:
+        logger.info("Positions fetch: no active accounts")
+        return []
+
+    pairs = [(acct, market) for acct in accounts for market in _enabled_markets(acct)]
+    if not pairs:
+        logger.warning(
+            "Positions fetch: %d active accounts but none have an enabled market "
+            "(futures_enabled or spot_enabled). Re-verify credentials.",
+            len(accounts),
+        )
+        return []
+
+    tasks = [_fetch_account_market_positions(acct, market) for (acct, market) in pairs]
+    results = await asyncio.gather(*tasks)
     all_positions = []
     for positions in results:
         all_positions.extend(positions)
+    logger.info(
+        "Positions fetch: %d row(s) from %d (account,market) pair(s)",
+        len(all_positions), len(pairs),
+    )
     return all_positions
+
+
+@router.get("/_debug")
+async def debug_positions(db: AsyncSession = Depends(get_db)):
+    """Diagnostic snapshot — shows per-account flags + per-market fetch sizes.
+
+    Use when /api/positions/ returns [] unexpectedly.
+    """
+    result = await db.execute(select(ExchangeAccount))
+    accounts = result.scalars().all()
+    out = []
+    for acct in accounts:
+        markets = _enabled_markets(acct)
+        per_market = {}
+        for market in markets:
+            try:
+                rows = await _fetch_account_market_positions(acct, market)
+                per_market[market] = {"count": len(rows), "error": None}
+            except Exception as e:
+                per_market[market] = {"count": 0, "error": str(e)}
+        out.append({
+            "account_id": acct.id,
+            "name": acct.name,
+            "is_active": bool(acct.is_active),
+            "futures_enabled": bool(acct.futures_enabled),
+            "spot_enabled": bool(acct.spot_enabled),
+            "legacy_market_type": acct.market_type,
+            "per_market": per_market,
+        })
+    return out
 
 
 class ForceCloseRequest(BaseModel):
