@@ -23,9 +23,11 @@ The control center for the trader.
   - Futures rows show LONG/SHORT, size, entry price, mark price, notional, leverage, unrealized P&L, and P&L %.
   - Spot rows show HOLD, held/free/locked quantity, last price, estimated value, "Spot 1x", weighted-average buy price (derived from the local trade ledger), unrealized P&L = (mark − avg) × held, and P&L %.
 * Order History: Tracks both Futures and Spot trades with a Market column.
-  - Futures actions: LONG, SHORT, EXIT.
-  - Spot actions: BUY, SELL, EXIT.
+  - Futures actions: LONG, SHORT, EXIT. EXIT rows are labelled "Exit Long" or "Exit Short" depending on the closing order's side (SELL closes a long; BUY closes a short).
+  - Spot actions: BUY, SELL, EXIT. Spot EXIT rows always render as "Exit Long" because Spot has no short concept.
   - Futures rows show leverage. Spot rows show Spot 1x.
+  - The Action filter dropdown exposes "Exit Long" and "Exit Short" as synthetic options; they translate to `action=EXIT` plus the implied side filter (SELL or BUY).
+  - The date-range filter defaults to the last 7 days (today-7 → today) on first load and after Reset, so an empty page never produces an empty range.
 * Webhook Logs: Shows market result as Futures, Spot, or Mixed when one signal routes to both market types.
 * Testnet Mode: One toggle controls Binance Futures Testnet and Binance Spot Testnet. Banner reads "TESTNET MODE - Futures and Spot trading with fake money".
 * Numeric Formatting: All price, quantity, USDT, and P&L values render through magnitude-aware formatters (`fmtPrice`, `fmtQty`, `fmtUsdt`) so low-price coins (e.g. 0.00008489) display with full precision instead of being truncated to zero by default locale settings.
@@ -94,9 +96,13 @@ Verification flags (set automatically at account create/update):
 3. If neither market verifies, the request is rejected with a clear error.
 4. If at least one market verifies, the account is saved encrypted. `futures_enabled` and `spot_enabled` reflect the per-market result.
 5. Account settings are created from global defaults. `leverage` stores the Futures value; Spot is implicitly 1x.
-6. Background job auto-syncs trade history from Binance for every enabled market:
-   - Futures: `futures_account_trades()` pulls all symbols at once.
-   - Spot: Binance only exposes per-symbol history. The job queries every symbol it can discover for that account — the union of existing TradeRecord symbols, configured SymbolMapping symbols, and `{asset}USDT` for every non-zero asset in the current Spot wallet. Coins that the user fully sold or transferred out before the account was added are not recoverable through this endpoint; they require a manual sync after the user creates a mapping or imports the symbol list.
+6. Background job auto-syncs trade history from Binance for every enabled market. Binance does not expose a "list every trade across symbols" endpoint, so both adapters must enumerate candidate symbols first:
+   - Futures (FuturesAdapter.fetch_remote_trades):
+     - Seeds the symbol set from: existing TradeRecord rows for the account, configured SymbolMapping rows, currently open positions (positionAmt != 0 from futures_position_information — note that Binance returns a row per listed perp, so flat rows are deliberately ignored), and `futures_income_history` paged backwards in 90-day chunks up to ~2 years (collects every symbol that ever booked PnL or funding).
+     - Filters the set to ASCII alphanumeric tickers (testnet listings occasionally include CJK-character symbols that break Binance request signing with `-1022 Signature for this request is not valid`).
+     - Calls `futures_account_trades(symbol, startTime, endTime, limit=1000)` per symbol, paged in 7-day windows (the maximum Binance allows per call), capped at 26 windows (~6 months) on a first sync. Pagination terminates when an empty window follows at least one imported page.
+   - Spot (SpotAdapter.fetch_remote_trades): Binance Spot `get_my_trades` also requires a `symbol`. The sync queries every symbol it can discover — the union of existing TradeRecord symbols, configured SymbolMapping symbols, and `{asset}USDT` for every non-zero asset in the current Spot wallet. Coins that were fully sold or transferred out before the account was added are not recoverable through this endpoint; they require the user to add a mapping or supply the symbol manually.
+   - Diagnostics: candidate symbol sets and per-symbol trade counts are logged at INFO so a "0 trades synced" report can be pinpointed to a specific empty window or signature failure.
 7. Live holdings, balances, Futures positions, and Spot 24h tickers populate when the user opens the Positions / Dashboard tabs (real-time, not part of the create flow).
 8. Spot avg-cost + unrealized P&L become available as soon as the imported BUY rows hit the local TradeRecord ledger.
 
@@ -126,6 +132,8 @@ Verification flags (set automatically at account create/update):
 3. Futures rows can be force-closed with reduce-only Futures market orders.
 4. Spot rows can be sold with Spot market SELL orders.
 5. The force-close endpoint takes `market_type` in the request body — required because a single account may simultaneously hold a Futures position and a Spot bag on the same symbol.
+6. If the table fails to load, the row that previously read "Loading…" is replaced with the actual HTTP status or render error so the user does not see a silent blank page.
+7. A diagnostic endpoint `GET /api/positions/_debug` returns, per account, the per-market enable flags, the legacy `market_type`, and the row count / error string for each market's adapter fetch. Use it to triage empty Positions tabs (verification failures, signature errors, etc.).
 6. UI labels and confirmation modals clearly distinguish "Close Futures Position" from "Sell Spot Holding".
 
 4. Non-Functional Requirements
