@@ -49,7 +49,7 @@
             </tr>
         </thead>
         <tbody id="positionsBody">
-            <tr><td colspan="12" style="text-align: center; color: #6b7280;">Loading…</td></tr>
+            <tr><td colspan="12" style="text-align:center;"><span class="loading-cell"><span class="spinner"></span>Loading positions…</span></td></tr>
         </tbody>
     </table>
 </div>
@@ -190,9 +190,7 @@
     async function confirmClose() {
         if (!pendingClose) return;
         const btn = document.getElementById('confirmCloseBtn');
-        btn.disabled = true;
-        btn.textContent = 'Closing…';
-
+        setBusy(btn, true, 'Closing…');
         try {
             const res = await fetch('/api/positions/close', {
                 method: 'POST',
@@ -211,6 +209,8 @@
             }
         } catch (e) {
             showToast('Network error', 'error');
+        } finally {
+            setBusy(btn, false);
         }
 
         cancelClose();

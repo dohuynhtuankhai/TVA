@@ -21,7 +21,7 @@
                 <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Log each TradingView alert with its symbol, timeframe, and expiry. A background watcher sends a Telegram nudge starting 24 h before expiry (and re-pings every 12 h until the row is updated or removed).</p>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button class="btn-primary" style="background: #374151;" onclick="checkAlertsNow()">Check Now</button>
+                <button class="btn-primary" id="checkNowBtn" style="background: #374151;" onclick="checkAlertsNow()">Check Now</button>
                 <button class="btn-primary" onclick="openAlertModal()">+ Add Alert</button>
             </div>
         </div>
@@ -40,7 +40,7 @@
                     </tr>
                 </thead>
                 <tbody id="alertsBody">
-                    <tr><td colspan="7" style="text-align:center; color:#6b7280; padding: 24px;">Loading…</td></tr>
+                    <tr><td colspan="7" style="text-align:center;"><span class="loading-cell"><span class="spinner"></span>Loading alerts…</span></td></tr>
                 </tbody>
             </table>
         </div>
@@ -223,13 +223,19 @@
     }
 
     async function checkAlertsNow() {
-        const res = await fetch('/api/utility/tv-alerts/check-now', { method: 'POST' });
-        if (res.ok) {
-            const data = await res.json();
-            showToast(`Watcher tick complete — notified ${data.notified} alert${data.notified === 1 ? '' : 's'}.`);
-            loadAlerts();
-        } else {
-            showToast('Watcher tick failed', 'error');
+        const btn = document.getElementById('checkNowBtn');
+        setBusy(btn, true, 'Checking…');
+        try {
+            const res = await fetch('/api/utility/tv-alerts/check-now', { method: 'POST' });
+            if (res.ok) {
+                const data = await res.json();
+                showToast(`Watcher tick complete — notified ${data.notified} alert${data.notified === 1 ? '' : 's'}.`);
+                loadAlerts();
+            } else {
+                showToast('Watcher tick failed', 'error');
+            }
+        } finally {
+            setBusy(btn, false);
         }
     }
 

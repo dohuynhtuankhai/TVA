@@ -377,8 +377,7 @@
     async function submitAccount(e) {
         e.preventDefault();
         const btn = e.submitter || e.target.querySelector('button[type="submit"]');
-        btn.disabled = true;
-        btn.textContent = 'Saving…';
+        setBusy(btn, true, 'Verifying & saving…');
         try {
             const id = document.getElementById('editAccountId').value;
             const body = {
@@ -398,8 +397,7 @@
                 showToast(err.detail || 'Error saving account', 'error');
             }
         } finally {
-            btn.disabled = false;
-            btn.textContent = 'Save';
+            setBusy(btn, false);
         }
     }
 

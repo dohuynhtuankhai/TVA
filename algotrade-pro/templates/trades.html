@@ -88,7 +88,7 @@
             </tr>
         </thead>
         <tbody id="tradesBody">
-            <tr><td colspan="11" style="color: #6b7280;">Loading…</td></tr>
+            <tr><td colspan="11" style="text-align:center;"><span class="loading-cell"><span class="spinner"></span>Loading trades…</span></td></tr>
         </tbody>
     </table>
 </div>
@@ -265,9 +265,7 @@
 
     async function syncFromBinance() {
         const btn = document.getElementById('syncBtn');
-        btn.disabled = true;
-        btn.textContent = 'Syncing…';
-
+        setBusy(btn, true, 'Syncing…');
         try {
             const res = await fetch('/api/trades/sync', { method: 'POST' });
             const data = await res.json();
@@ -280,10 +278,9 @@
             }
         } catch (e) {
             showToast('Sync error', 'error');
+        } finally {
+            setBusy(btn, false);
         }
-
-        btn.disabled = false;
-        btn.textContent = 'Sync from Binance';
     }
 
     applyDefaultDateRange();

@@ -49,6 +49,14 @@
         .tv-link { color: #93c5fd; text-decoration: none; border-bottom: 1px dashed rgba(147,197,253,0.35); }
         .tv-link:hover { color: #bfdbfe; border-bottom-color: #bfdbfe; }
 
+        /* Loading spinner — CSS-only, no external assets */
+        .spinner { display: inline-block; vertical-align: middle; width: 16px; height: 16px; border: 2px solid rgba(147,197,253,0.25); border-top-color: #93c5fd; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        .spinner-lg { width: 28px; height: 28px; border-width: 3px; }
+        .spinner-btn { width: 12px; height: 12px; border-width: 2px; margin-right: 6px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-cell { display: inline-flex; align-items: center; gap: 8px; color: #9ca3af; padding: 16px; }
+        .page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: #9ca3af; padding: 40px; }
+
         /* Mobile hamburger (hidden ≥769px) */
         .menu-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: 60; background: #1f2937; border: 1px solid #374151; color: #f9fafb; width: 40px; height: 40px; border-radius: 0.5rem; cursor: pointer; align-items: center; justify-content: center; }
         .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 45; }
@@ -211,6 +219,27 @@
         const url = tvChartUrl(symbol, timeframe, marketType);
         const label = displayLabel || symbol;
         return `<a href="${url}" target="_blank" rel="noopener" class="tv-link" title="Open ${esc(symbol)} on TradingView">${esc(label)}</a>`;
+    }
+
+    // ── Loading helpers ─────────────────────────────────────────────
+    // tbody row used while async data is fetching.
+    function loadingRow(colspan, label) {
+        const txt = label || 'Loading…';
+        return `<tr><td colspan="${colspan}" style="text-align:center;"><span class="loading-cell"><span class="spinner"></span>${esc(txt)}</span></td></tr>`;
+    }
+    // Toggle a button's spinner state. Pass the button element and a busy flag.
+    function setBusy(btn, busy, busyLabel) {
+        if (!btn) return;
+        if (busy) {
+            // Always re-stash the current label so successive busy calls
+            // on the same button (different contexts) restore correctly.
+            btn.dataset.origLabel = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = `<span class="spinner spinner-btn"></span>${esc(busyLabel || btn.dataset.origLabel)}`;
+        } else {
+            btn.disabled = false;
+            if (btn.dataset.origLabel) btn.textContent = btn.dataset.origLabel;
+        }
     }
 
     // ── WebSocket ───────────────────────────────────────────────────
