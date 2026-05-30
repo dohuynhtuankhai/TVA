@@ -1,0 +1,2 @@
+# Keeps the (otherwise empty) static/ directory in git so the app's
+# StaticFiles(directory="static") mount finds it on a fresh deploy.

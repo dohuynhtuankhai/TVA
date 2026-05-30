@@ -50,6 +50,10 @@ rsync -a --delete \
     --exclude '.env' --exclude '.pytest_cache' \
     "$SRC_DIR"/ "$APP_DIR"/
 
+# StaticFiles(directory="static") requires this dir to exist at runtime, but git
+# does not track empty dirs, so guarantee it here (it may legitimately be empty).
+mkdir -p "$APP_DIR/static"
+
 echo "==> Building virtualenv (system Python 3.14)"
 rm -rf "$APP_DIR/venv"
 python3 -m venv "$APP_DIR/venv"

@@ -160,15 +160,21 @@ async def _process_and_broadcast(payload: WebhookPayload):
 
 
 @router.post("/webhook", status_code=200)
-async def receive_webhook(payload: WebhookPayload, request: Request, bg: BackgroundTasks):
+async def receive_webhook(
+    payload: WebhookPayload,
+    request: Request,
+    bg: BackgroundTasks,
+    secret: str | None = Query(default=None),
+):
     """Receive a TradingView JSON webhook.
 
     Returns HTTP 200 immediately and processes the signal in the background
     to meet the <500ms latency requirement.
     """
-    # Validate webhook secret if configured
+    # Validate webhook secret if configured. TradingView cannot send custom
+    # headers, so the secret may also be supplied as a `?secret=` query param.
     if settings.WEBHOOK_SECRET:
-        incoming_secret = request.headers.get("X-Webhook-Secret", "")
+        incoming_secret = request.headers.get("X-Webhook-Secret") or secret or ""
         if not hmac.compare_digest(incoming_secret, settings.WEBHOOK_SECRET):
             logger.warning("Webhook rejected — invalid secret from %s", request.client.host)
             raise HTTPException(status_code=401, detail="Invalid webhook secret")
