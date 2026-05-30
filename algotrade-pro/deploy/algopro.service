@@ -1,0 +1,52 @@
+# /etc/systemd/system/algopro.service
+#
+# AlgoPro Engine — single-worker uvicorn service.
+#
+# IMPORTANT: run exactly ONE worker. Sessions (auth.py) and the utility
+# watcher loop both live in-process; multiple workers cause random logouts
+# and duplicate Telegram notifications.
+#
+# Install:
+#   sudo cp deploy/algopro.service /etc/systemd/system/algopro.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now algopro
+# Logs:
+#   journalctl -u algopro -f
+
+[Unit]
+Description=AlgoPro Engine (FastAPI / uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=algopro
+Group=algopro
+
+# Absolute path to the app checkout.
+WorkingDirectory=/opt/algopro/algotrade-pro
+EnvironmentFile=/opt/algopro/algotrade-pro/.env
+
+# Bind to loopback only — nginx terminates TLS and proxies in.
+ExecStart=/opt/algopro/algotrade-pro/venv/bin/uvicorn main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 1 \
+    --no-access-log \
+    --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1
+
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+
+# ── Hardening ────────────────────────────────────────────────────────────
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+# algotrade.db lives in WorkingDirectory, so keep it writable.
+ReadWritePaths=/opt/algopro/algotrade-pro
+
+[Install]
+WantedBy=multi-user.target

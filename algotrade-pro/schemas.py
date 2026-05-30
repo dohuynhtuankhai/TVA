@@ -3,15 +3,15 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ── Webhook ──────────────────────────────────────────────────────────────────
 
 class WebhookPayload(BaseModel):
-    symbol: str = Field(..., example="BTCUSDT")
+    symbol: str = Field(..., json_schema_extra={"example": "BTCUSDT"})
     action: str = Field(..., pattern="^(ENTRY|EXIT|LONG|SHORT|BUY|SELL)$")
-    timeframe: str = Field(..., example="5m")
+    timeframe: str = Field(..., json_schema_extra={"example": "5m"})
     price: Optional[float] = None
 
 
@@ -61,8 +61,7 @@ class AccountResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Symbol Mapping ───────────────────────────────────────────────────────────
@@ -81,8 +80,7 @@ class SymbolMappingResponse(BaseModel):
     account_id: int
     market_type: str = "futures"
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Bot Settings ─────────────────────────────────────────────────────────────
@@ -123,8 +121,7 @@ class BotSettingsResponse(BaseModel):
     telegram_enabled: bool = False
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Trade Record ─────────────────────────────────────────────────────────────
@@ -146,8 +143,7 @@ class TradeRecordResponse(BaseModel):
     market_type: Optional[str] = None
     executed_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Dashboard / WebSocket ────────────────────────────────────────────────────
@@ -196,5 +192,4 @@ class TVAlertResponse(BaseModel):
     notified_at: Optional[datetime]
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

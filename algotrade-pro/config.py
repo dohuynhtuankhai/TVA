@@ -3,7 +3,7 @@
 import os
 import secrets
 import sys
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -53,9 +53,7 @@ class Settings(BaseSettings):
     # Webhook secret (optional extra auth layer)
     WEBHOOK_SECRET: str = ""
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     def validate_required(self):
         """Fail fast if critical settings are missing."""

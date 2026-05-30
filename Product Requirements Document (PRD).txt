@@ -31,6 +31,10 @@ The control center for the trader.
 * Webhook Logs: Shows market result as Futures, Spot, or Mixed when one signal routes to both market types.
 * Testnet Mode: One toggle controls Binance Futures Testnet and Binance Spot Testnet. Banner reads "TESTNET MODE - Futures and Spot trading with fake money".
 * Numeric Formatting: All price, quantity, USDT, and P&L values render through magnitude-aware formatters (`fmtPrice`, `fmtQty`, `fmtUsdt`) so low-price coins (e.g. 0.00008489) display with full precision instead of being truncated to zero by default locale settings.
+* Loading Feedback: Every async surface shows real progress instead of frozen text or buttons.
+  - Tabs that fetch tables on load (Dashboard balances + recent trades, Positions & Holdings, Order History, Webhook Logs, Utility TradingView Alerts) render a centred CSS-only spinner row in the tbody until the API responds. The same spinner replaces the row with an inline error message if the fetch fails.
+  - Long-running buttons (Sync from Binance, Close Position / Sell Holding, TradingView Alerts "Check Now", Add/Save Account) toggle through `setBusy()` so they show a small inline spinner plus a contextual label (`Syncing…`, `Closing…`, `Verifying & saving…`) and stay disabled until the call resolves.
+  - The spinner is pure CSS (`@keyframes spin` on a bordered circle) so it works offline and adds no asset weight.
 
 2.2. TradingView Strategy
 The TradingView strategy remains the signal source.
@@ -143,6 +147,7 @@ Verification flags (set automatically at account create/update):
 * Backward Compatibility: V1 accounts with `market_type='spot'` are migrated to per-market flags on first start (spot_enabled=1, futures_enabled reset to 0). V1 accounts with `market_type='futures'` keep futures_enabled. To grant an existing account the second market, the user updates its credentials, which triggers a fresh dual-market verification.
 * Testnet Support: Futures and Spot testnets are both supported through the same Testnet Mode toggle.
 * Display Precision: Price, quantity, and USDT amounts render with magnitude-aware precision; sub-cent and sub-satoshi values must not be silently rounded to zero in the UI.
+* Perceived Latency: No async UI surface stays at a frozen "Loading…" string or an unresponsive button. Table fetches must render a spinner row; long actions must put their trigger button into a disabled busy state with a contextual label.
 
 5. Extension Points
 * Adding a new market (e.g. Margin, Options) = subclass MarketAdapter, register in the factory, and add the corresponding `<market>_enabled` flag plus verification call. Route handlers, UI fan-out, and ledger recording adapt automatically.

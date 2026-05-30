@@ -1,16 +1,18 @@
-fastapi==0.115.0
-uvicorn[standard]==0.30.0
-sqlalchemy==2.0.35
-aiosqlite==0.20.0
-greenlet==3.1.0
-python-binance==1.0.19
-cryptography==43.0.0
-pydantic==2.9.0
-pydantic-settings==2.5.0
-jinja2==3.1.4
-redis==5.1.0
-httpx==0.27.0
-websockets==13.0
-python-multipart==0.0.9
-aiohttp==3.10.0
-bcrypt==4.2.0
+# Pinned for CPython 3.14 (Ubuntu 26.04 system Python). All packages below
+# ship prebuilt cp314 wheels, so no source compilation is needed.
+fastapi==0.136.3
+uvicorn[standard]==0.48.0
+sqlalchemy==2.0.50
+aiosqlite==0.22.1
+greenlet==3.5.1
+python-binance==1.0.36
+cryptography==48.0.0
+pydantic==2.13.4
+pydantic-settings==2.14.1
+jinja2==3.1.6
+redis==8.0.0
+httpx==0.28.1
+websockets==16.0
+python-multipart==0.0.29
+aiohttp==3.13.5
+bcrypt==5.0.0
