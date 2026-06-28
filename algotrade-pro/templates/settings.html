@@ -4,7 +4,7 @@
 {% block content %}
 <div style="margin-bottom: 24px;">
     <h2 style="font-size: 1.5rem; font-weight: 700;">Bot Settings</h2>
-    <p style="color: #9ca3af; font-size: 0.875rem;">Global risk parameters and defaults for new accounts.</p>
+    <p style="color: var(--text-2); font-size: 0.875rem;">Global risk parameters and defaults for new accounts.</p>
 </div>
 
 <div class="card" style="padding: 24px; max-width: 600px;">
@@ -13,56 +13,56 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
             <div>
                 <p style="font-weight: 600;">Bot Engine</p>
-                <p style="font-size: 0.8rem; color: #6b7280;">Enable or disable automated trading</p>
+                <p style="font-size: 0.8rem; color: var(--text-2);">Enable or disable automated trading</p>
             </div>
-            <div class="toggle-bg" id="botToggle" onclick="toggleBot()"></div>
+            <button type="button" class="toggle-bg" id="botToggle" role="switch" aria-checked="false" aria-label="Bot Engine" onclick="toggleBot()"></button>
         </div>
 
         <!-- Testnet Mode Toggle -->
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
             <div>
                 <p style="font-weight: 600;">Testnet Mode</p>
-                <p style="font-size: 0.8rem; color: #6b7280;">Trade with fake money on Binance testnets.</p>
+                <p style="font-size: 0.8rem; color: var(--text-2);">Trade with fake money on Binance testnets.</p>
                 <p id="testnetWarning" style="font-size: 0.75rem; color: #fca5a5; margin-top: 4px; display: none;">
                     Turning this OFF means the bot will trade with REAL money
                 </p>
             </div>
-            <div class="toggle-bg" id="testnetToggle" onclick="toggleTestnet()"></div>
+            <button type="button" class="toggle-bg" id="testnetToggle" role="switch" aria-checked="false" aria-label="Testnet Mode" onclick="toggleTestnet()"></button>
         </div>
 
         <!-- Risk Per Trade -->
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Risk Per Trade (%)</label>
             <input class="input-field" id="riskPerTrade" type="number" step="0.1" min="0.1" max="100" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Percentage of account balance used per trade</p>
+            <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Percentage of account balance used per trade</p>
         </div>
 
         <!-- Leverage Override -->
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Default Futures Leverage</label>
             <input class="input-field" id="leverageOverride" type="number" min="1" max="125" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Used for new Futures accounts. Spot accounts are always 1x.</p>
+            <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Used for new Futures accounts. Spot accounts are always 1x.</p>
         </div>
 
         <!-- Daily Loss Limit -->
         <div style="margin-bottom: 20px;">
             <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Daily Loss Limit (USDT)</label>
             <input class="input-field" id="dailyLossLimit" type="number" step="1" min="0" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Bot stops trading if daily losses exceed this amount</p>
+            <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Bot stops trading if daily losses exceed this amount</p>
         </div>
 
         <!-- Max Drawdown -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Max Drawdown (USDT)</label>
             <input class="input-field" id="maxDrawdown" type="number" step="1" min="0" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">All-time loss threshold – bot stops if exceeded</p>
+            <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">All-time loss threshold – bot stops if exceeded</p>
         </div>
 
         <!-- Positions Refresh Interval -->
         <div style="margin-bottom: 24px;">
             <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Positions & Holdings Refresh Interval (seconds)</label>
             <input class="input-field" id="refreshInterval" type="number" min="3" max="300" required>
-            <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">How often the Positions & Holdings page fetches live data (3–300 seconds)</p>
+            <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">How often the Positions & Holdings page fetches live data (3–300 seconds)</p>
         </div>
 
         <!-- Telegram Notifications -->
@@ -72,22 +72,22 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                 <div>
                     <p style="font-weight: 500;">Enable Telegram</p>
-                    <p style="font-size: 0.75rem; color: #6b7280;">Get notified on every trade fill, close, and error</p>
+                    <p style="font-size: 0.75rem; color: var(--text-2);">Get notified on every trade fill, close, and error</p>
                 </div>
-                <div class="toggle-bg" id="telegramToggle" onclick="toggleTelegram()"></div>
+                <button type="button" class="toggle-bg" id="telegramToggle" role="switch" aria-checked="false" aria-label="Enable Telegram notifications" onclick="toggleTelegram()"></button>
             </div>
 
             <div id="telegramFields">
                 <div style="margin-bottom: 12px;">
                     <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Bot Token</label>
                     <input class="input-field" id="telegramBotToken" type="text" placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11">
-                    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Get from <a href="https://t.me/BotFather" target="_blank" style="color: #60a5fa;">@BotFather</a> on Telegram</p>
+                    <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Get from <a href="https://t.me/BotFather" target="_blank" style="color: #60a5fa;">@BotFather</a> on Telegram</p>
                 </div>
 
                 <div style="margin-bottom: 12px;">
                     <label style="display: block; font-size: 0.875rem; font-weight: 500; margin-bottom: 6px;">Chat ID</label>
                     <input class="input-field" id="telegramChatId" type="text" placeholder="123456789">
-                    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">Get from <a href="https://t.me/userinfobot" target="_blank" style="color: #60a5fa;">@userinfobot</a> on Telegram</p>
+                    <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Get from <a href="https://t.me/userinfobot" target="_blank" style="color: #60a5fa;">@userinfobot</a> on Telegram</p>
                 </div>
 
                 <button type="button" class="btn-primary" style="width: 100%; background: #374151; margin-bottom: 8px;" onclick="testTelegram()">
@@ -99,14 +99,14 @@
         <button type="submit" class="btn-primary" style="width: 100%;">Save Settings</button>
     </form>
 
-    <p style="font-size: 0.75rem; color: #6b7280; margin-top: 12px; text-align: center;" id="lastUpdated"></p>
+    <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 12px; text-align: center;" id="lastUpdated"></p>
 </div>
 
 <!-- Confirmation modal for disabling testnet -->
 <div class="modal-overlay" id="testnetConfirmModal">
     <div class="modal-content">
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;">Switch to Live Trading?</h3>
-        <p style="font-size: 0.875rem; color: #9ca3af; margin-bottom: 8px;">
+        <p style="font-size: 0.875rem; color: var(--text-2); margin-bottom: 8px;">
             You are about to disable Testnet Mode. This means:
         </p>
         <ul style="font-size: 0.85rem; color: #d1d5db; margin-bottom: 20px; padding-left: 20px; list-style: disc;">
@@ -128,6 +128,13 @@
     let testnetMode = true;
     let telegramEnabled = false;
 
+    // Sync a role="switch" toggle's visual state and accessible state together.
+    function setSwitch(id, on) {
+        const el = document.getElementById(id);
+        el.className = `toggle-bg ${on ? 'active' : ''}`;
+        el.setAttribute('aria-checked', on ? 'true' : 'false');
+    }
+
     async function loadSettings() {
         const res = await fetch('/api/settings/');
         const data = await res.json();
@@ -135,9 +142,9 @@
         botActive = data.bot_active;
         testnetMode = data.testnet_mode;
         telegramEnabled = data.telegram_enabled || false;
-        document.getElementById('botToggle').className = `toggle-bg ${botActive ? 'active' : ''}`;
-        document.getElementById('testnetToggle').className = `toggle-bg ${testnetMode ? 'active' : ''}`;
-        document.getElementById('telegramToggle').className = `toggle-bg ${telegramEnabled ? 'active' : ''}`;
+        setSwitch('botToggle', botActive);
+        setSwitch('testnetToggle', testnetMode);
+        setSwitch('telegramToggle', telegramEnabled);
         document.getElementById('testnetWarning').style.display = testnetMode ? 'none' : 'block';
         document.getElementById('riskPerTrade').value = data.risk_per_trade;
         document.getElementById('leverageOverride').value = data.leverage_override;
@@ -152,7 +159,7 @@
 
     function toggleBot() {
         botActive = !botActive;
-        document.getElementById('botToggle').className = `toggle-bg ${botActive ? 'active' : ''}`;
+        setSwitch('botToggle', botActive);
     }
 
     function toggleTestnet() {
@@ -162,7 +169,7 @@
         } else {
             // Turning ON testnet = safe direction, no confirmation needed
             testnetMode = true;
-            document.getElementById('testnetToggle').className = 'toggle-bg active';
+            setSwitch('testnetToggle', true);
             document.getElementById('testnetWarning').style.display = 'none';
         }
     }
@@ -173,14 +180,14 @@
 
     function confirmTestnetOff() {
         testnetMode = false;
-        document.getElementById('testnetToggle').className = 'toggle-bg';
+        setSwitch('testnetToggle', false);
         document.getElementById('testnetWarning').style.display = 'block';
         document.getElementById('testnetConfirmModal').style.display = 'none';
     }
 
     function toggleTelegram() {
         telegramEnabled = !telegramEnabled;
-        document.getElementById('telegramToggle').className = `toggle-bg ${telegramEnabled ? 'active' : ''}`;
+        setSwitch('telegramToggle', telegramEnabled);
         document.getElementById('telegramFields').style.display = telegramEnabled ? 'block' : 'none';
     }
 

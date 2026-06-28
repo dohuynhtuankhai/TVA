@@ -5,10 +5,10 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
         <h2 style="font-size: 1.5rem; font-weight: 700;">Positions & Holdings</h2>
-        <p style="color: #9ca3af; font-size: 0.875rem;">Live positions and holdings across all active accounts.</p>
+        <p style="color: var(--text-2); font-size: 0.875rem;">Live positions and holdings across all active accounts.</p>
     </div>
     <div style="display: flex; align-items: center; gap: 12px;">
-        <span style="font-size: 0.75rem; color: #6b7280;" id="refreshLabel">Auto-refresh: 10s</span>
+        <span style="font-size: 0.75rem; color: var(--text-2);" id="refreshLabel">Auto-refresh: 10s</span>
         <button class="btn-primary" onclick="loadPositions()" style="background: #374151;">Refresh</button>
     </div>
 </div>
@@ -16,15 +16,15 @@
 <!-- Summary Cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
     <div class="card stat-card" style="padding: 16px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase;">Open Items</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase;">Open Items</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="totalPositions">—</p>
     </div>
     <div class="card stat-card" style="padding: 16px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase;">Notional / Value</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase;">Notional / Value</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="totalNotional">—</p>
     </div>
     <div class="card stat-card" style="padding: 16px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase;">Unrealized P&L</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase;">Unrealized P&L</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="totalPnl">—</p>
     </div>
 </div>
@@ -60,11 +60,11 @@
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;" id="closeTitle">Close Position</h3>
         <p style="font-size: 0.875rem; color: #d1d5db; margin-bottom: 8px;" id="closeIntro"></p>
         <div style="background: #111827; border-radius: 0.5rem; padding: 12px; margin-bottom: 16px;">
-            <p style="font-size: 0.85rem; color: #9ca3af;">Account: <span style="color: #f9fafb; font-weight: 500;" id="closeAccount"></span></p>
-            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Symbol: <span style="color: #f9fafb; font-weight: 500;" id="closeSymbol"></span></p>
-            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Market / Side: <span style="font-weight: 500;" id="closeSide"></span></p>
-            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">Size: <span style="color: #f9fafb; font-weight: 500;" id="closeSize"></span></p>
-            <p style="font-size: 0.85rem; color: #9ca3af; margin-top: 4px;">P&L: <span style="font-weight: 500;" id="closePnl"></span></p>
+            <p style="font-size: 0.85rem; color: var(--text-2);">Account: <span style="color: var(--text); font-weight: 500;" id="closeAccount"></span></p>
+            <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">Symbol: <span style="color: var(--text); font-weight: 500;" id="closeSymbol"></span></p>
+            <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">Market / Side: <span style="font-weight: 500;" id="closeSide"></span></p>
+            <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">Size: <span style="color: var(--text); font-weight: 500;" id="closeSize"></span></p>
+            <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">P&L: <span style="font-weight: 500;" id="closePnl"></span></p>
         </div>
         <p style="font-size: 0.8rem; color: #fca5a5; margin-bottom: 16px;" id="closeWarning"></p>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
@@ -119,7 +119,7 @@
             pnlEl.style.marginTop = '4px';
 
             if (positions.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; color: #6b7280; padding: 32px;">No open Futures positions or Spot holdings</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; color: var(--text-2); padding: 32px;">No open Futures positions or Spot holdings</td></tr>';
                 return;
             }
 
@@ -133,7 +133,7 @@
                 const pnlPctClass = p.pnl_percent >= 0 ? 'pnl-positive' : 'pnl-negative';
                 const posData = JSON.stringify(p).replace(/'/g, "\\'").replace(/"/g, '&quot;');
                 const entryLabel = isSpot
-                    ? (p.entry_price > 0 ? `${fmtPrice(p.entry_price)} <span style="color:#6b7280;font-size:0.7rem;">avg</span>` : `<span style="color:#6b7280;">—</span>`)
+                    ? (p.entry_price > 0 ? `${fmtPrice(p.entry_price)} <span style="color:var(--text-2);font-size:0.7rem;">avg</span>` : `<span style="color:var(--text-2);">—</span>`)
                     : fmtPrice(p.entry_price);
                 const leverageLabel = isSpot ? 'Spot 1x' : `${p.leverage}x`;
                 const buttonLabel = isSpot ? 'Sell' : 'Close';

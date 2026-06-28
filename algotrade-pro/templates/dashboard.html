@@ -4,30 +4,30 @@
 {% block content %}
 <div style="margin-bottom: 24px;">
     <h2 style="font-size: 1.5rem; font-weight: 700;">Dashboard</h2>
-    <p style="color: #9ca3af; font-size: 0.875rem;">Real-time portfolio overview across all active accounts.</p>
+    <p style="color: var(--text-2); font-size: 0.875rem;">Real-time portfolio overview across all active accounts.</p>
 </div>
 
 <!-- Stat Cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 32px;">
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Equity</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Equity</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalBalance">—</p>
-        <p style="color: #6b7280; font-size: 0.75rem;">USDT</p>
+        <p style="color: var(--text-2); font-size: 0.75rem;">USDT</p>
     </div>
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Available Capital</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Available Capital</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalMargin">—</p>
-        <p style="color: #6b7280; font-size: 0.75rem;">USDT</p>
+        <p style="color: var(--text-2); font-size: 0.75rem;">USDT</p>
     </div>
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Utilization</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Utilization</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="avgUtil">—</p>
-        <p style="color: #6b7280; font-size: 0.75rem;">Estimated %</p>
+        <p style="color: var(--text-2); font-size: 0.75rem;">Estimated %</p>
     </div>
     <div class="card stat-card" style="padding: 20px;">
-        <p style="color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Trades</p>
+        <p style="color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;">Total Trades</p>
         <p style="font-size: 1.75rem; font-weight: 700; margin-top: 4px;" id="totalTrades">—</p>
-        <p style="color: #6b7280; font-size: 0.75rem;" id="totalPnlLabel">P&L: —</p>
+        <p style="color: var(--text-2); font-size: 0.75rem;" id="totalPnlLabel">P&L: —</p>
     </div>
 </div>
 
@@ -91,7 +91,7 @@
 
             const tbody = document.getElementById('accountsTable');
             if (data.accounts.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #6b7280;">No active accounts</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-2);">No active accounts</td></tr>';
             } else {
                 tbody.innerHTML = data.accounts.map(a => {
                     const market = a.market_type === 'spot' ? '<span class="market-pill">Spot</span>' : '<span class="badge-blue">Futures</span>';
@@ -129,7 +129,7 @@
             const trades = await res.json();
             const tbody = document.getElementById('tradesTable');
             if (trades.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6b7280;">No trades yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-2);">No trades yet</td></tr>';
             } else {
                 tbody.innerHTML = trades.map(t => {
                     const time = new Date(t.executed_at).toLocaleString();
@@ -137,7 +137,7 @@
                     const statusBadge = t.status === 'FILLED' ? 'badge-green' : t.status === 'ERROR' ? 'badge-red' : 'badge-yellow';
                     const market = t.market_type === 'spot' ? '<span class="market-pill">Spot</span>' : '<span class="badge-blue">Futures</span>';
                     return `<tr>
-                        <td style="font-size:0.8rem; color:#9ca3af;">${esc(time)}</td>
+                        <td style="font-size:0.8rem; color:var(--text-2);">${esc(time)}</td>
                         <td>${market}</td>
                         <td style="font-weight:500;">${tvSymbolLink(t.symbol, t.timeframe, t.market_type)}</td>
                         <td>${esc(t.action)}</td>

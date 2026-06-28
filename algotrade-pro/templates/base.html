@@ -7,6 +7,52 @@
     <meta name="description" content="AlgoPro – Self-hosted trading bot bridging TradingView to Binance">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⚡</text></svg>">
     <style>
+        /* ── Design tokens ─────────────────────────────────────────────
+           Single source of truth for the dark trading-dashboard palette.
+           Identity preserved (gray-900 ramp + blue-600 accent); secondary
+           text raised to #9ca3af so it clears WCAG AA (>=5.7:1) on every
+           surface. Inline styles can read these via var() too. */
+        :root {
+            /* Surfaces */
+            --bg: #111827;
+            --surface: #1f2937;
+            --surface-2: #374151;
+            --border: #374151;
+            --border-strong: #4b5563;
+            /* Text */
+            --text: #f9fafb;
+            --text-2: #9ca3af;          /* secondary + captions — AA on bg & surface */
+            /* Accent + focus */
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-ring: rgba(37, 99, 235, 0.30);
+            --focus: #93c5fd;
+            /* Semantic */
+            --danger: #dc2626;
+            --danger-hover: #b91c1c;
+            --pos: #6ee7b7;
+            --neg: #fca5a5;
+            --ok: #34d399;
+            --bad: #ef4444;
+            --link: #93c5fd;
+            --link-hover: #bfdbfe;
+            /* Radius */
+            --r-sm: 0.5rem;
+            --r-md: 0.75rem;
+            --r-pill: 9999px;
+            /* Type */
+            --font: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            /* z-index scale (low -> high). Modal now sits above the sidebar
+               and menu toggle; toast sits above the modal. */
+            --z-banner: 30;
+            --z-sidebar: 40;
+            --z-drawer-backdrop: 45;
+            --z-drawer: 50;
+            --z-menu-toggle: 55;
+            --z-modal: 60;
+            --z-toast: 80;
+        }
+
         /* Base reset — replaces the removed Tailwind/Flowbite preflight so
            headings, paragraphs and form controls render as before. */
         *, *::before, *::after { box-sizing: border-box; }
@@ -14,58 +60,69 @@
         button, input, select, textarea { font: inherit; color: inherit; }
         img, svg { vertical-align: middle; }
 
-        body { background-color: #111827; color: #f9fafb; font-family: 'Inter', sans-serif; }
-        .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 0.5rem; }
-        .badge-green { background-color: #065f46; color: #6ee7b7; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
-        .badge-red { background-color: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
-        .badge-yellow { background-color: #78350f; color: #fcd34d; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
-        .badge-blue { background-color: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
-        .market-pill { display: inline-flex; align-items: center; gap: 6px; background: #052e2b; color: #5eead4; border: 1px solid #0f766e; border-radius: 9999px; padding: 3px 10px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
-        .stat-card { transition: transform 0.15s; }
+        body { background-color: var(--bg); color: var(--text); font-family: var(--font); }
+
+        /* Visible keyboard focus on every interactive element (was input-only). */
+        a:focus-visible, button:focus-visible, .nav-link:focus-visible,
+        .btn-primary:focus-visible, .btn-danger:focus-visible,
+        .toggle-bg:focus-visible, [role="switch"]:focus-visible, [tabindex]:focus-visible {
+            outline: 2px solid var(--focus);
+            outline-offset: 2px;
+        }
+
+        .card { background-color: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); }
+        .badge-green { background-color: #065f46; color: #6ee7b7; padding: 2px 8px; border-radius: var(--r-pill); font-size: 0.75rem; }
+        .badge-red { background-color: #7f1d1d; color: #fca5a5; padding: 2px 8px; border-radius: var(--r-pill); font-size: 0.75rem; }
+        .badge-yellow { background-color: #78350f; color: #fcd34d; padding: 2px 8px; border-radius: var(--r-pill); font-size: 0.75rem; }
+        .badge-blue { background-color: #1e3a5f; color: #93c5fd; padding: 2px 8px; border-radius: var(--r-pill); font-size: 0.75rem; }
+        .market-pill { display: inline-flex; align-items: center; gap: 6px; background: #052e2b; color: #5eead4; border: 1px solid #0f766e; border-radius: var(--r-pill); padding: 3px 10px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+        .stat-card { transition: transform 0.15s ease-out; }
         .stat-card:hover { transform: translateY(-2px); }
-        .btn-primary { background-color: #2563eb; color: white; padding: 8px 16px; border-radius: 0.5rem; font-weight: 500; cursor: pointer; border: none; }
-        .btn-primary:hover { background-color: #1d4ed8; }
-        .btn-danger { background-color: #dc2626; color: white; padding: 8px 16px; border-radius: 0.5rem; font-weight: 500; cursor: pointer; border: none; }
-        .btn-danger:hover { background-color: #b91c1c; }
-        .input-field { background-color: #374151; border: 1px solid #4b5563; color: #f9fafb; padding: 8px 12px; border-radius: 0.5rem; width: 100%; }
-        .input-field:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.3); }
+        .btn-primary { background-color: var(--accent); color: #fff; padding: 8px 16px; border-radius: var(--r-sm); font-weight: 500; cursor: pointer; border: none; }
+        .btn-primary:hover { background-color: var(--accent-hover); }
+        .btn-danger { background-color: var(--danger); color: #fff; padding: 8px 16px; border-radius: var(--r-sm); font-weight: 500; cursor: pointer; border: none; }
+        .btn-danger:hover { background-color: var(--danger-hover); }
+        .input-field { background-color: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); padding: 8px 12px; border-radius: var(--r-sm); width: 100%; }
+        .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
         table { width: 100%; border-collapse: collapse; }
-        th { text-align: center; padding: 12px 16px; color: #9ca3af; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #374151; }
-        td { text-align: center; padding: 12px 16px; border-bottom: 1px solid #374151; font-size: 0.875rem; }
-        tr:hover { background-color: #111827; }
-        .nav-link { color: #9ca3af; padding: 8px 16px; border-radius: 0.5rem; text-decoration: none; display: flex; align-items: center; gap: 8px; }
-        .nav-link:hover, .nav-link.active { color: #f9fafb; background-color: #374151; }
-        .sidebar { width: 250px; min-height: 100vh; background-color: #1f2937; border-right: 1px solid #374151; position: fixed; top: 0; left: 0; padding: 24px 16px; }
+        th { text-align: center; padding: 12px 16px; color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+        td { text-align: center; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
+        /* Right-align numeric columns where markup opts in. */
+        td.num, th.num { text-align: right; }
+        tr:hover { background-color: var(--bg); }
+        .nav-link { color: var(--text-2); padding: 8px 16px; border-radius: var(--r-sm); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        .nav-link:hover, .nav-link.active { color: var(--text); background-color: var(--surface-2); }
+        .sidebar { width: 250px; min-height: 100vh; background-color: var(--surface); border-right: 1px solid var(--border); position: fixed; top: 0; left: 0; padding: 24px 16px; z-index: var(--z-sidebar); }
         .main-content { margin-left: 250px; padding: 32px; }
-        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: 0.5rem; z-index: 50; display: none; }
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 24px; border-radius: var(--r-sm); z-index: var(--z-toast); display: none; }
         .toast-success { background-color: #065f46; color: #6ee7b7; }
         .toast-error { background-color: #7f1d1d; color: #fca5a5; }
         .toast-warning { background-color: #78350f; color: #fcd34d; }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 40; display: none; align-items: center; justify-content: center; }
-        .modal-content { background: #1f2937; border: 1px solid #374151; border-radius: 0.75rem; padding: 24px; width: 100%; max-width: 480px; }
-        .toggle-bg { width: 48px; height: 26px; background: #4b5563; border-radius: 9999px; position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.2s; }
-        .toggle-bg::after { content: ''; position: absolute; left: 3px; top: 3px; background: white; width: 20px; height: 20px; border-radius: 50%; transition: transform 0.2s; }
-        .toggle-bg.active { background: #2563eb; }
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: var(--z-modal); display: none; align-items: center; justify-content: center; }
+        .modal-content { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); padding: 24px; width: 100%; max-width: 480px; }
+        .toggle-bg { width: 48px; height: 26px; background: var(--border-strong); border-radius: var(--r-pill); position: relative; cursor: pointer; flex-shrink: 0; transition: background 0.2s ease-out; border: none; padding: 0; }
+        .toggle-bg::after { content: ''; position: absolute; left: 3px; top: 3px; background: #fff; width: 20px; height: 20px; border-radius: 50%; transition: transform 0.2s ease-out; }
+        .toggle-bg.active { background: var(--accent); }
         .toggle-bg.active::after { transform: translateX(22px); }
-        .pnl-positive { color: #6ee7b7; }
-        .pnl-negative { color: #fca5a5; }
+        .pnl-positive { color: var(--pos); }
+        .pnl-negative { color: var(--neg); }
         .ws-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .ws-dot.connected { background-color: #34d399; }
-        .ws-dot.disconnected { background-color: #ef4444; }
-        .tv-link { color: #93c5fd; text-decoration: none; border-bottom: 1px dashed rgba(147,197,253,0.35); }
-        .tv-link:hover { color: #bfdbfe; border-bottom-color: #bfdbfe; }
+        .ws-dot.connected { background-color: var(--ok); }
+        .ws-dot.disconnected { background-color: var(--bad); }
+        .tv-link { color: var(--link); text-decoration: none; border-bottom: 1px dashed rgba(147,197,253,0.35); }
+        .tv-link:hover { color: var(--link-hover); border-bottom-color: var(--link-hover); }
 
         /* Loading spinner — CSS-only, no external assets */
-        .spinner { display: inline-block; vertical-align: middle; width: 16px; height: 16px; border: 2px solid rgba(147,197,253,0.25); border-top-color: #93c5fd; border-radius: 50%; animation: spin 0.7s linear infinite; }
+        .spinner { display: inline-block; vertical-align: middle; width: 16px; height: 16px; border: 2px solid rgba(147,197,253,0.25); border-top-color: var(--focus); border-radius: 50%; animation: spin 0.7s linear infinite; }
         .spinner-lg { width: 28px; height: 28px; border-width: 3px; }
         .spinner-btn { width: 12px; height: 12px; border-width: 2px; margin-right: 6px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .loading-cell { display: inline-flex; align-items: center; gap: 8px; color: #9ca3af; padding: 16px; }
-        .page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: #9ca3af; padding: 40px; }
+        .loading-cell { display: inline-flex; align-items: center; gap: 8px; color: var(--text-2); padding: 16px; }
+        .page-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: var(--text-2); padding: 40px; }
 
         /* Mobile hamburger (hidden ≥769px) */
-        .menu-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: 60; background: #1f2937; border: 1px solid #374151; color: #f9fafb; width: 40px; height: 40px; border-radius: 0.5rem; cursor: pointer; align-items: center; justify-content: center; }
-        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 45; }
+        .menu-toggle { display: none; position: fixed; top: 12px; left: 12px; z-index: var(--z-menu-toggle); background: var(--surface); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: var(--r-sm); cursor: pointer; align-items: center; justify-content: center; }
+        .sidebar-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: var(--z-drawer-backdrop); }
         .table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
         /* Tablet + mobile */
@@ -74,7 +131,7 @@
         }
         @media (max-width: 768px) {
             .menu-toggle { display: inline-flex; }
-            .sidebar { transform: translateX(-100%); transition: transform 0.2s ease; z-index: 50; box-shadow: 4px 0 12px rgba(0,0,0,0.4); }
+            .sidebar { transform: translateX(-100%); transition: transform 0.2s ease-out; z-index: var(--z-drawer); box-shadow: 4px 0 12px rgba(0,0,0,0.4); }
             .sidebar.open { transform: translateX(0); }
             .sidebar.open + .sidebar-backdrop { display: block; }
             .main-content { margin-left: 0; padding: 60px 12px 24px; }
@@ -88,6 +145,9 @@
             /* Filter bar wraps */
             .filter-row { flex-wrap: wrap; gap: 8px !important; }
             .modal-content { max-width: 92vw !important; padding: 16px !important; }
+            /* Touch targets >= 44px (WCAG 2.5.5) */
+            .nav-link { padding-top: 12px; padding-bottom: 12px; }
+            .btn-primary, .btn-danger { min-height: 44px; }
         }
         @media (max-width: 480px) {
             .main-content { padding: 56px 8px 16px; }
@@ -96,13 +156,25 @@
             .badge-green, .badge-red, .badge-yellow, .badge-blue, .market-pill { font-size: 0.65rem; padding: 2px 6px; }
             td, th { padding: 8px 10px; font-size: 0.75rem; }
         }
+
+        /* Respect reduced-motion: drop transitions/hover lift; the loading
+           spinner keeps turning so "busy" state stays legible. */
+        @media (prefers-reduced-motion: reduce) {
+            *:not(.spinner), *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }
+            .stat-card:hover { transform: none; }
+        }
     </style>
 </head>
 <body>
 
 <!-- Mobile menu toggle -->
 <button class="menu-toggle" id="menuToggle" aria-label="Toggle navigation" onclick="toggleSidebar()">
-    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    <svg aria-hidden="true" width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
 </button>
 
 <!-- Sidebar -->
@@ -112,55 +184,55 @@
             &#9889; AlgoPro
         </h1>
         <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
-            <span style="font-size: 0.75rem; color: #6b7280;">Engine v2</span>
+            <span style="font-size: 0.75rem; color: var(--text-2);">Engine v2</span>
         </div>
     </div>
 
     <nav style="display: flex; flex-direction: column; gap: 4px;">
         <a href="/" class="nav-link {% if page == 'dashboard' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
             Dashboard
         </a>
         <a href="/accounts" class="nav-link {% if page == 'accounts' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/></svg>
             Accounts
         </a>
         <a href="/positions" class="nav-link {% if page == 'positions' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
             Positions & Holdings
         </a>
         <a href="/trades" class="nav-link {% if page == 'trades' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
             Order History
         </a>
         <a href="/webhook-logs" class="nav-link {% if page == 'webhook_logs' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             Webhook Logs
         </a>
         <a href="/utility" class="nav-link {% if page == 'utility' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"/></svg>
             Utility
         </a>
         <a href="/settings" class="nav-link {% if page == 'settings' %}active{% endif %}">
-            <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <svg aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             Bot Settings
         </a>
     </nav>
 
     <div style="position: absolute; bottom: 24px; left: 16px; right: 16px;">
-        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: #6b7280;">
+        <div style="display: flex; align-items: center; justify-content: space-between; font-size: 0.75rem; color: var(--text-2);">
             <div style="display: flex; align-items: center; gap: 8px;">
                 <span class="ws-dot" id="wsStatus"></span>
                 <span id="wsLabel">Connecting…</span>
             </div>
-            <button onclick="handleLogout()" style="color: #9ca3af; background: none; border: none; cursor: pointer; font-size: 0.75rem;" aria-label="Logout">Logout</button>
+            <button onclick="handleLogout()" style="color: var(--text-2); background: none; border: none; cursor: pointer; font-size: 0.75rem;" aria-label="Logout">Logout</button>
         </div>
     </div>
 </aside>
 <div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar(false)"></div>
 
 <!-- Testnet Banner (loaded dynamically) -->
-<div id="testnetBanner" style="display: none; position: fixed; top: 0; left: 250px; right: 0; background: linear-gradient(90deg, #78350f, #92400e); color: #fcd34d; text-align: center; padding: 6px; font-size: 0.8rem; font-weight: 600; z-index: 50; letter-spacing: 0.05em;">
+<div id="testnetBanner" role="status" style="display: none; position: fixed; top: 0; left: 250px; right: 0; background: linear-gradient(90deg, #78350f, #92400e); color: #fcd34d; text-align: center; padding: 6px; font-size: 0.8rem; font-weight: 600; z-index: var(--z-banner); letter-spacing: 0.05em;">
     TESTNET MODE — trading with fake money
 </div>
 
@@ -170,7 +242,7 @@
 </main>
 
 <!-- Toast notification -->
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <!-- Scripts -->
 <script>

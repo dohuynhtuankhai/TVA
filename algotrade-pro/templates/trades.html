@@ -5,7 +5,7 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
         <h2 style="font-size: 1.5rem; font-weight: 700;">Order History</h2>
-        <p style="color: #9ca3af; font-size: 0.875rem;">All trades across every account.</p>
+        <p style="color: var(--text-2); font-size: 0.875rem;">All trades across every account.</p>
     </div>
     <button class="btn-primary" id="syncBtn" onclick="syncFromBinance()">Sync from Binance</button>
 </div>
@@ -13,23 +13,23 @@
 <!-- Stats Cards -->
 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 20px;">
     <div class="card stat-card" style="padding: 14px; text-align: center;">
-        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Total Trades</p>
+        <p style="color: var(--text-2); font-size: 0.7rem; text-transform: uppercase;">Total Trades</p>
         <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statTotal">—</p>
     </div>
     <div class="card stat-card" style="padding: 14px; text-align: center;">
-        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Filled</p>
+        <p style="color: var(--text-2); font-size: 0.7rem; text-transform: uppercase;">Filled</p>
         <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statFilled">—</p>
     </div>
     <div class="card stat-card" style="padding: 14px; text-align: center;">
-        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Errors</p>
+        <p style="color: var(--text-2); font-size: 0.7rem; text-transform: uppercase;">Errors</p>
         <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statErrors">—</p>
     </div>
     <div class="card stat-card" style="padding: 14px; text-align: center;">
-        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Win Rate</p>
+        <p style="color: var(--text-2); font-size: 0.7rem; text-transform: uppercase;">Win Rate</p>
         <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statWinRate">—</p>
     </div>
     <div class="card stat-card" style="padding: 14px; text-align: center;">
-        <p style="color: #9ca3af; font-size: 0.7rem; text-transform: uppercase;">Total P&L</p>
+        <p style="color: var(--text-2); font-size: 0.7rem; text-transform: uppercase;">Total P&L</p>
         <p style="font-size: 1.25rem; font-weight: 700; margin-top: 2px;" id="statPnl">—</p>
     </div>
 </div>
@@ -96,7 +96,7 @@
 <!-- Pagination -->
 <div style="display: flex; justify-content: center; gap: 8px; margin-top: 16px; align-items: center;">
     <button class="btn-primary" style="background: #374151;" id="prevBtn" onclick="prevPage()">Previous</button>
-    <span style="padding: 8px 16px; color: #9ca3af; font-size: 0.85rem;" id="pageInfo">Page 1</span>
+    <span style="padding: 8px 16px; color: var(--text-2); font-size: 0.85rem;" id="pageInfo">Page 1</span>
     <button class="btn-primary" style="background: #374151;" id="nextBtn" onclick="nextPage()">Next</button>
 </div>
 {% endblock %}
@@ -183,7 +183,7 @@
         document.getElementById('nextBtn').disabled = trades.length < pageSize;
 
         if (trades.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="11" style="color: #6b7280; padding: 32px;">No trades found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" style="color: var(--text-2); padding: 32px;">No trades found</td></tr>';
             loadStats();
             return;
         }
@@ -218,7 +218,7 @@
                 : `<span class="badge-blue">Futures ${t.leverage ? t.leverage + 'x' : ''}</span>`;
 
             return `<tr>
-                <td style="font-size:0.75rem; color:#9ca3af; white-space:nowrap;">${esc(time)}</td>
+                <td style="font-size:0.75rem; color:var(--text-2); white-space:nowrap;">${esc(time)}</td>
                 <td style="font-weight:500;">${esc(t.account_name)}</td>
                 <td style="font-weight:500;">${tvSymbolLink(t.symbol, t.timeframe, t.market_type)}</td>
                 <td>${actionBadge}</td>

@@ -5,10 +5,10 @@
 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
     <div>
         <h2 style="font-size: 1.5rem; font-weight: 700;">Webhook Logs</h2>
-        <p style="color: #9ca3af; font-size: 0.875rem;">Every TradingView signal received and its execution result.</p>
+        <p style="color: var(--text-2); font-size: 0.875rem;">Every TradingView signal received and its execution result.</p>
     </div>
     <div style="display: flex; gap: 8px; align-items: center;">
-        <span id="autoRefreshLabel" style="font-size: 0.75rem; color: #6b7280;">Auto-refresh: ON</span>
+        <span id="autoRefreshLabel" style="font-size: 0.75rem; color: var(--text-2);">Auto-refresh: ON</span>
         <div class="toggle-bg active" id="autoRefreshToggle" onclick="toggleAutoRefresh()"></div>
     </div>
 </div>
@@ -16,19 +16,19 @@
 <!-- Stats Cards -->
 <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
     <div class="card stat-card" style="padding: 16px; text-align: center;">
-        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Total Signals</p>
+        <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Total Signals</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="statTotal">0</p>
     </div>
     <div class="card stat-card" style="padding: 16px; text-align: center;">
-        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Success</p>
+        <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Success</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #6ee7b7;" id="statSuccess">0</p>
     </div>
     <div class="card stat-card" style="padding: 16px; text-align: center;">
-        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Failed</p>
+        <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Failed</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fca5a5;" id="statFailed">0</p>
     </div>
     <div class="card stat-card" style="padding: 16px; text-align: center;">
-        <p style="font-size: 0.75rem; color: #6b7280; text-transform: uppercase;">Avg Latency</p>
+        <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Avg Latency</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="statLatency">—</p>
     </div>
 </div>
@@ -104,7 +104,7 @@
             document.getElementById('statLatency').textContent = avgLatency > 0 ? `${avgLatency}ms` : '—';
 
             if (logs.length === 0) {
-                document.getElementById('logsBody').innerHTML = '<tr><td colspan="10" style="text-align: center; color: #6b7280; padding: 32px;">No webhooks received yet</td></tr>';
+                document.getElementById('logsBody').innerHTML = '<tr><td colspan="10" style="text-align: center; color: var(--text-2); padding: 32px;">No webhooks received yet</td></tr>';
                 return;
             }
 
