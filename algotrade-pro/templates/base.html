@@ -105,6 +105,9 @@
         .toggle-bg::after { content: ''; position: absolute; left: 3px; top: 3px; background: #fff; width: 20px; height: 20px; border-radius: 50%; transition: transform 0.2s ease-out; }
         .toggle-bg.active { background: var(--accent); }
         .toggle-bg.active::after { transform: translateX(22px); }
+        /* Invisible ::before extends the tap target to >=44px without changing
+           the 48x26 visual switch (WCAG 2.5.5). */
+        .toggle-bg::before { content: ''; position: absolute; inset: -9px -4px; }
         .pnl-positive { color: var(--pos); }
         .pnl-negative { color: var(--neg); }
         .ws-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
@@ -391,6 +394,10 @@
     // Close drawer when a nav link is clicked on mobile
     document.querySelectorAll('.sidebar .nav-link').forEach(a => {
         a.addEventListener('click', () => { if (window.innerWidth <= 768) toggleSidebar(false); });
+    });
+    // Escape closes the mobile drawer (keyboard path; backdrop is mouse-only).
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && document.getElementById('sidebar').classList.contains('open')) toggleSidebar(false);
     });
 
     connectWS();

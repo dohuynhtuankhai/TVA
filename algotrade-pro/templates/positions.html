@@ -172,11 +172,11 @@
             : 'This will execute a reduce-only Futures market order immediately.';
         const sideEl = document.getElementById('closeSide');
         sideEl.textContent = isSpot ? 'SPOT SELL' : `FUTURES ${pos.side}`;
-        sideEl.style.color = isSpot || pos.side === 'SHORT' ? '#fca5a5' : '#6ee7b7';
+        sideEl.style.color = isSpot || pos.side === 'SHORT' ? 'var(--neg)' : 'var(--pos)';
         document.getElementById('closeSize').textContent = fmtQty(pos.size);
         const pnlEl = document.getElementById('closePnl');
         pnlEl.textContent = (pos.unrealized_pnl >= 0 ? '+' : '') + fmtUsdt(pos.unrealized_pnl) + ' USDT';
-        pnlEl.style.color = pos.unrealized_pnl >= 0 ? '#6ee7b7' : '#fca5a5';
+        pnlEl.style.color = pos.unrealized_pnl >= 0 ? 'var(--pos)' : 'var(--neg)';
         document.getElementById('confirmCloseBtn').disabled = false;
         document.getElementById('confirmCloseBtn').textContent = isSpot ? 'Sell Holding' : 'Close Position';
         document.getElementById('closeModal').style.display = 'flex';

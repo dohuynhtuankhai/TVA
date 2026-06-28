@@ -223,7 +223,7 @@
                         <td>${mb}</td>
                         <td><a href="${tvChartUrl(m.symbol, m.timeframe, m.market_type)}" target="_blank" rel="noopener" class="badge-blue" style="text-decoration:none;" title="Open ${esc(m.symbol)} on TradingView">${esc(m.symbol)}</a></td>
                         <td>${esc(m.timeframe)}</td>
-                        <td><button onclick="deleteMapping(${m.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Remove</button></td>
+                        <td><button onclick="deleteMapping(${m.id})" style="color: var(--bad); background: none; border: none; cursor: pointer; font-size: 0.8rem;">Remove</button></td>
                     </tr>`;
                   }).join('')
                 : '<tr><td colspan="4" style="text-align: center; color: var(--text-2); font-size: 0.8rem;">No mappings</td></tr>';
@@ -238,7 +238,7 @@
                         <div style="display: flex; gap: 8px; align-items: center;">
                             ${statusBadge} ${activeBadge}
                             <button onclick="toggleActive(${acct.id}, ${!acct.is_active})" style="color: var(--text-2); background: none; border: none; cursor: pointer; font-size: 0.75rem;">${acct.is_active ? 'Deactivate' : 'Activate'}</button>
-                            <button onclick="deleteAccount(${acct.id})" style="color: #ef4444; background: none; border: none; cursor: pointer; font-size: 0.75rem;">Delete</button>
+                            <button onclick="deleteAccount(${acct.id})" style="color: var(--bad); background: none; border: none; cursor: pointer; font-size: 0.75rem;">Delete</button>
                         </div>
                     </div>
 
@@ -250,7 +250,7 @@
                         </div>
                         <div>
                             <p style="font-size: 0.65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em;">Initial</p>
-                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px; color: #93c5fd;">${initialSizeLabel}</p>
+                            <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px; color: var(--link);">${initialSizeLabel}</p>
                         </div>
                         <div>
                             <p style="font-size: 0.65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em;">Leverage</p>
