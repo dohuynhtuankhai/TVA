@@ -181,6 +181,9 @@ async def receive_webhook(
 
     # Clean the symbol from TradingView format
     payload.symbol = _clean_symbol(payload.symbol)
+    # Normalize timeframe to TradingView format (5m → 5, 1h → 60) so it matches
+    # the stored mapping, which is normalized the same way at creation time.
+    payload.timeframe = normalize_timeframe(payload.timeframe)
 
     logger.info("Webhook received: %s", payload.model_dump())
 
