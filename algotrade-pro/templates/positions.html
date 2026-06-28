@@ -9,7 +9,7 @@
     </div>
     <div style="display: flex; align-items: center; gap: 12px;">
         <span style="font-size: 0.75rem; color: var(--text-2);" id="refreshLabel">Auto-refresh: 10s</span>
-        <button class="btn-primary" onclick="loadPositions()" style="background: #374151;">Refresh</button>
+        <button class="btn-primary" onclick="loadPositions()" style="background: var(--surface-2);">Refresh</button>
     </div>
 </div>
 
@@ -57,18 +57,18 @@
 <!-- Close/Sell Confirm Modal -->
 <div class="modal-overlay" id="closeModal" role="dialog" aria-modal="true" aria-label="Close position or sell holding">
     <div class="modal-content">
-        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;" id="closeTitle">Close Position</h3>
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: var(--neg);" id="closeTitle">Close Position</h3>
         <p style="font-size: 0.875rem; color: #d1d5db; margin-bottom: 8px;" id="closeIntro"></p>
-        <div style="background: #111827; border-radius: 0.5rem; padding: 12px; margin-bottom: 16px;">
+        <div style="background: var(--bg); border-radius: 0.5rem; padding: 12px; margin-bottom: 16px;">
             <p style="font-size: 0.85rem; color: var(--text-2);">Account: <span style="color: var(--text); font-weight: 500;" id="closeAccount"></span></p>
             <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">Symbol: <span style="color: var(--text); font-weight: 500;" id="closeSymbol"></span></p>
             <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">Market / Side: <span style="font-weight: 500;" id="closeSide"></span></p>
             <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">Size: <span style="color: var(--text); font-weight: 500;" id="closeSize"></span></p>
             <p style="font-size: 0.85rem; color: var(--text-2); margin-top: 4px;">P&L: <span style="font-weight: 500;" id="closePnl"></span></p>
         </div>
-        <p style="font-size: 0.8rem; color: #fca5a5; margin-bottom: 16px;" id="closeWarning"></p>
+        <p style="font-size: 0.8rem; color: var(--neg); margin-bottom: 16px;" id="closeWarning"></p>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="btn-primary" style="background: #374151;" onclick="cancelClose()">Cancel</button>
+            <button class="btn-primary" style="background: var(--surface-2);" onclick="cancelClose()">Cancel</button>
             <button class="btn-danger" id="confirmCloseBtn" onclick="confirmClose()">Close</button>
         </div>
     </div>
@@ -102,7 +102,7 @@
             const res = await fetch('/api/positions/');
             if (!res.ok) {
                 const errText = await res.text().catch(() => '');
-                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:#fca5a5; padding:32px;">API error ${res.status}: ${esc(errText.slice(0,200))}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color: var(--neg); padding:32px;">API error ${res.status}: ${esc(errText.slice(0,200))}</td></tr>`;
                 return;
             }
             const positions = await res.json();
@@ -153,7 +153,7 @@
                 </tr>`;
             }).join('');
         } catch (e) {
-            tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color:#fca5a5; padding:32px;">Render error: ${esc(String(e && e.message || e))}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; color: var(--neg); padding:32px;">Render error: ${esc(String(e && e.message || e))}</td></tr>`;
             showToast('Failed to load positions', 'error');
         }
     }

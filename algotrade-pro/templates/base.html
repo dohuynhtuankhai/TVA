@@ -84,6 +84,7 @@
         .btn-danger:hover { background-color: var(--danger-hover); }
         .input-field { background-color: var(--surface-2); border: 1px solid var(--border-strong); color: var(--text); padding: 8px 12px; border-radius: var(--r-sm); width: 100%; }
         .input-field:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-ring); }
+        .input-field::placeholder, input::placeholder { color: var(--text-2); opacity: 1; }
         table { width: 100%; border-collapse: collapse; }
         th { text-align: center; padding: 12px 16px; color: var(--text-2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
         td { text-align: center; padding: 12px 16px; border-bottom: 1px solid var(--border); font-size: 0.875rem; font-variant-numeric: tabular-nums; }
@@ -136,12 +137,11 @@
             .sidebar.open + .sidebar-backdrop { display: block; }
             .main-content { margin-left: 0; padding: 60px 12px 24px; }
             #testnetBanner { left: 0 !important; padding-left: 60px !important; }
-            /* Collapse 4-col stat grids to 2 cols */
-            .stat-grid-4 { grid-template-columns: 1fr 1fr !important; }
-            /* Generic 4-col stat row used in account cards */
-            .main-content [style*="grid-template-columns: repeat(4"] { grid-template-columns: 1fr 1fr !important; }
-            /* Cards/forms: 2-col → 1-col */
-            .main-content [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+            /* Responsive grid collapse via stable class hooks, not inline-style
+               substring matching. .g4 = 4-col stat grids, .g2 = 2-col forms.
+               !important beats the inline grid-template-columns. */
+            .g4 { grid-template-columns: 1fr 1fr !important; }
+            .g2 { grid-template-columns: 1fr !important; }
             /* Filter bar wraps */
             .filter-row { flex-wrap: wrap; gap: 8px !important; }
             .modal-content { max-width: 92vw !important; padding: 16px !important; }
@@ -151,7 +151,7 @@
         }
         @media (max-width: 480px) {
             .main-content { padding: 56px 8px 16px; }
-            .main-content [style*="grid-template-columns: repeat(4"] { grid-template-columns: 1fr !important; }
+            .g4 { grid-template-columns: 1fr !important; }
             h2, h3 { font-size: 1.1rem !important; }
             .badge-green, .badge-red, .badge-yellow, .badge-blue, .market-pill { font-size: 0.65rem; padding: 2px 6px; }
             td, th { padding: 8px 10px; font-size: 0.75rem; }
@@ -405,6 +405,50 @@
             document.getElementById('mainContent').style.paddingTop = '32px';
         }
     });
+
+    // ── Modal accessibility ─────────────────────────────────────────
+    // Pages open/close .modal-overlay by toggling style.display. Enhance
+    // every modal generically (no per-page wiring): move focus in on open,
+    // trap Tab inside, close on Escape, restore focus + un-inert on close.
+    (function () {
+        let active = null, lastFocus = null;
+        const focusablesIn = (el) => Array.from(el.querySelectorAll(
+            'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+        )).filter(n => n.offsetParent !== null);
+        const isOpen = (m) => getComputedStyle(m).display !== 'none';
+        function onOpen(m) {
+            if (active === m) return;
+            active = m;
+            lastFocus = document.activeElement;
+            document.getElementById('sidebar')?.setAttribute('inert', '');
+            const f = focusablesIn(m);
+            (f[0] || m).focus();
+        }
+        function onClose() {
+            if (!active) return;
+            document.getElementById('sidebar')?.removeAttribute('inert');
+            if (lastFocus && lastFocus.focus) lastFocus.focus();
+            active = null; lastFocus = null;
+        }
+        document.querySelectorAll('.modal-overlay').forEach(m => {
+            if (!m.hasAttribute('tabindex')) m.setAttribute('tabindex', '-1');
+            new MutationObserver(() => { isOpen(m) ? onOpen(m) : (active === m && onClose()); })
+                .observe(m, { attributes: true, attributeFilter: ['style', 'class'] });
+        });
+        document.addEventListener('keydown', (e) => {
+            if (!active) return;
+            if (e.key === 'Escape') { active.style.display = 'none'; }
+            else if (e.key === 'Tab') {
+                const f = focusablesIn(active); if (!f.length) return;
+                const first = f[0], last = f[f.length - 1];
+                if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+                else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+            }
+        });
+        document.addEventListener('focusin', (e) => {
+            if (active && !active.contains(e.target)) { (focusablesIn(active)[0] || active).focus(); }
+        });
+    })();
 </script>
 {% block scripts %}{% endblock %}
 </body>

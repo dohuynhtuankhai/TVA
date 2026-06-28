@@ -8,7 +8,7 @@
 </div>
 
 <!-- Sub-section tabs -->
-<div style="display: flex; gap: 8px; border-bottom: 1px solid #374151; margin-bottom: 20px;">
+<div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px;">
     <button class="util-tab active" data-tab="tv-alerts" onclick="switchUtilTab('tv-alerts')">TradingView Alerts</button>
 </div>
 
@@ -21,7 +21,7 @@
                 <p style="font-size: 0.8rem; color: var(--text-2); margin-top: 4px;">Log each TradingView alert with its symbol, timeframe, and expiry. A background watcher sends a Telegram nudge starting 24 h before expiry (and re-pings every 12 h until the row is updated or removed).</p>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button class="btn-primary" id="checkNowBtn" style="background: #374151;" onclick="checkAlertsNow()">Check Now</button>
+                <button class="btn-primary" id="checkNowBtn" style="background: var(--surface-2);" onclick="checkAlertsNow()">Check Now</button>
                 <button class="btn-primary" onclick="openAlertModal()">+ Add Alert</button>
             </div>
         </div>
@@ -54,7 +54,7 @@
         <form onsubmit="submitAlert(event)">
             <input type="hidden" id="alertId">
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                 <div>
                     <label style="display:block; font-size:0.875rem; color:var(--text-2); margin-bottom:4px;">Symbol</label>
                     <input class="input-field" id="alertSymbol" placeholder="e.g. BTCUSDT" required style="text-transform: uppercase;">
@@ -81,9 +81,9 @@
                 <textarea class="input-field" id="alertNote" rows="2" placeholder="What strategy / webhook is hooked to this alert?"></textarea>
             </div>
 
-            <p id="alertError" style="font-size:0.8rem; color:#fca5a5; display:none; margin-bottom: 12px;"></p>
+            <p id="alertError" style="font-size:0.8rem; color: var(--neg); display:none; margin-bottom: 12px;"></p>
             <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button type="button" class="btn-primary" style="background:#374151;" onclick="closeAlertModal()">Cancel</button>
+                <button type="button" class="btn-primary" style="background: var(--surface-2);" onclick="closeAlertModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save</button>
             </div>
         </form>
@@ -92,7 +92,7 @@
 
 <style>
     .util-tab { background: none; color: var(--text-2); border: none; padding: 8px 14px; cursor: pointer; font-size: 0.875rem; border-bottom: 2px solid transparent; }
-    .util-tab.active { color: var(--text); border-bottom-color: #2563eb; }
+    .util-tab.active { color: var(--text); border-bottom-color: var(--accent); }
     .alert-row-expired { background: rgba(127, 29, 29, 0.15); }
     .alert-row-warning { background: rgba(120, 53, 15, 0.15); }
 </style>
@@ -147,7 +147,7 @@
                 <td><span class="${status.klass}">${status.label}</span></td>
                 <td style="font-size:0.75rem; color:var(--text-2);">${notifiedFmt}</td>
                 <td>
-                    <button data-alert='${payload}' onclick='editAlert(this)' style="color:#2563eb; background:none; border:none; cursor:pointer; font-size:0.8rem;">Edit</button>
+                    <button data-alert='${payload}' onclick='editAlert(this)' style="color: var(--accent); background:none; border:none; cursor:pointer; font-size:0.8rem;">Edit</button>
                     <button onclick="deleteAlert(${a.id})" style="color:#ef4444; background:none; border:none; cursor:pointer; font-size:0.8rem;">Remove</button>
                 </td>
             </tr>`;

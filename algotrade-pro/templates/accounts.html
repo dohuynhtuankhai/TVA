@@ -33,7 +33,7 @@
             </div>
             <p style="font-size: 0.75rem; color: var(--text-2); margin-bottom: 12px;">Every available Binance market will be verified against this key. Trading settings are filled from your default Bot Settings and can be edited per account.</p>
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                <button type="button" class="btn-primary" style="background: #374151;" onclick="closeModal()">Cancel</button>
+                <button type="button" class="btn-primary" style="background: var(--surface-2);" onclick="closeModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save</button>
             </div>
         </form>
@@ -73,7 +73,7 @@
                 <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Optional — auto-places a STOP_MARKET order after entry</p>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+            <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
                 <div>
                     <label style="display: block; font-size: 0.875rem; color: var(--text-2); margin-bottom: 4px;">Trail Activation %</label>
                     <input class="input-field" id="setTrailActivation" type="number" step="0.1" min="0" max="50" placeholder="e.g. 2.0">
@@ -96,7 +96,7 @@
             </div>
 
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                <button type="button" class="btn-primary" style="background: #374151;" onclick="closeSettingsModal()">Cancel</button>
+                <button type="button" class="btn-primary" style="background: var(--surface-2);" onclick="closeSettingsModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save Settings</button>
             </div>
         </form>
@@ -127,9 +127,9 @@
                 <input class="input-field" id="mapTimeframe" placeholder="e.g. 5m, 15m, 1h, 4h" required>
                 <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Auto-converted to TradingView format (5m → 5, 1h → 60)</p>
             </div>
-            <p id="mappingError" style="font-size: 0.8rem; color: #fca5a5; margin-bottom: 12px; display: none;"></p>
+            <p id="mappingError" style="font-size: 0.8rem; color: var(--neg); margin-bottom: 12px; display: none;"></p>
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                <button type="button" class="btn-primary" style="background: #374151;" onclick="closeMappingModal()">Cancel</button>
+                <button type="button" class="btn-primary" style="background: var(--surface-2);" onclick="closeMappingModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Add Mapping</button>
             </div>
         </form>
@@ -243,7 +243,7 @@
                     </div>
 
                     <!-- Per-account Trading Settings -->
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 8px; padding: 12px 12px 4px; background: #111827; border-radius: 0.5rem 0.5rem 0 0; text-align: center;">
+                    <div class="g4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 8px; padding: 12px 12px 4px; background: var(--bg); border-radius: 0.5rem 0.5rem 0 0; text-align: center;">
                         <div>
                             <p style="font-size: 0.65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em;">Size</p>
                             <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${sizeLabel}</p>
@@ -261,7 +261,7 @@
                             <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${modeLabel}</p>
                         </div>
                     </div>
-                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; padding: 4px 12px 12px; background: #111827; border-radius: 0 0 0.5rem 0.5rem; text-align: center;">
+                    <div class="g4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; padding: 4px 12px 12px; background: var(--bg); border-radius: 0 0 0.5rem 0.5rem; text-align: center;">
                         <div>
                             <p style="font-size: 0.65rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.05em;">Stoploss</p>
                             <p style="font-size: 0.85rem; font-weight: 500; margin-top: 2px;">${slLabel}</p>
@@ -272,7 +272,7 @@
                         </div>
                         <div></div>
                         <div style="display: flex; align-items: center; justify-content: flex-end;">
-                            <button data-acct-id="${acct.id}" onclick="openSettingsForAccount(this)" style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">Edit Settings</button>
+                            <button data-acct-id="${acct.id}" onclick="openSettingsForAccount(this)" style="color: var(--accent); background: none; border: none; cursor: pointer; font-size: 0.8rem;">Edit Settings</button>
                         </div>
                     </div>
 
@@ -280,7 +280,7 @@
                     <div>
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                             <h5 style="font-size: 0.875rem; font-weight: 500; color: var(--text-2);">Symbol Mappings</h5>
-                            <button onclick="openMappingModal(${acct.id})" style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">+ Add</button>
+                            <button onclick="openMappingModal(${acct.id})" style="color: var(--accent); background: none; border: none; cursor: pointer; font-size: 0.8rem;">+ Add</button>
                         </div>
                         <div class="table-wrap">
                         <table>

@@ -9,23 +9,23 @@
     </div>
     <div style="display: flex; gap: 8px; align-items: center;">
         <span id="autoRefreshLabel" style="font-size: 0.75rem; color: var(--text-2);">Auto-refresh: ON</span>
-        <div class="toggle-bg active" id="autoRefreshToggle" onclick="toggleAutoRefresh()"></div>
+        <button type="button" class="toggle-bg active" id="autoRefreshToggle" role="switch" aria-checked="true" aria-label="Auto-refresh webhook logs" onclick="toggleAutoRefresh()"></button>
     </div>
 </div>
 
 <!-- Stats Cards -->
-<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
+<div class="g4" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px;">
     <div class="card stat-card" style="padding: 16px; text-align: center;">
         <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Total Signals</p>
         <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px;" id="statTotal">0</p>
     </div>
     <div class="card stat-card" style="padding: 16px; text-align: center;">
         <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Success</p>
-        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #6ee7b7;" id="statSuccess">0</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: var(--pos);" id="statSuccess">0</p>
     </div>
     <div class="card stat-card" style="padding: 16px; text-align: center;">
         <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Failed</p>
-        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: #fca5a5;" id="statFailed">0</p>
+        <p style="font-size: 1.5rem; font-weight: 700; margin-top: 4px; color: var(--neg);" id="statFailed">0</p>
     </div>
     <div class="card stat-card" style="padding: 16px; text-align: center;">
         <p style="font-size: 0.75rem; color: var(--text-2); text-transform: uppercase;">Avg Latency</p>
@@ -57,12 +57,12 @@
 </div>
 
 <!-- Details Modal -->
-<div class="modal-overlay" id="detailsModal">
+<div class="modal-overlay" id="detailsModal" role="dialog" aria-modal="true" aria-label="Webhook log details">
     <div class="modal-content" style="max-width: 600px;">
         <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 16px;">Webhook Details</h3>
-        <pre id="detailsContent" style="background: #111827; padding: 16px; border-radius: 0.5rem; font-size: 0.8rem; overflow-x: auto; white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></pre>
+        <pre id="detailsContent" style="background: var(--bg); padding: 16px; border-radius: 0.5rem; font-size: 0.8rem; overflow-x: auto; white-space: pre-wrap; max-height: 400px; overflow-y: auto;"></pre>
         <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-            <button class="btn-primary" style="background: #374151;" onclick="document.getElementById('detailsModal').style.display='none'">Close</button>
+            <button class="btn-primary" style="background: var(--surface-2);" onclick="document.getElementById('detailsModal').style.display='none'">Close</button>
         </div>
     </div>
 </div>
@@ -75,7 +75,9 @@
 
     function toggleAutoRefresh() {
         autoRefresh = !autoRefresh;
-        document.getElementById('autoRefreshToggle').className = `toggle-bg ${autoRefresh ? 'active' : ''}`;
+        const t = document.getElementById('autoRefreshToggle');
+        t.className = `toggle-bg ${autoRefresh ? 'active' : ''}`;
+        t.setAttribute('aria-checked', autoRefresh ? 'true' : 'false');
         document.getElementById('autoRefreshLabel').textContent = `Auto-refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
         if (autoRefresh) startAutoRefresh();
         else if (refreshTimer) clearInterval(refreshTimer);
@@ -140,7 +142,7 @@
                     <td>${statusBadge}</td>
                     <td>${acctInfo} filled</td>
                     <td>${latency}</td>
-                    <td><button onclick='showDetails(${JSON.stringify(log.details || "[]")})' style="color: #2563eb; background: none; border: none; cursor: pointer; font-size: 0.8rem;">View</button></td>
+                    <td><button onclick='showDetails(${JSON.stringify(log.details || "[]")})' style="color: var(--accent); background: none; border: none; cursor: pointer; font-size: 0.8rem;">View</button></td>
                 </tr>`;
             }
             document.getElementById('logsBody').innerHTML = html;

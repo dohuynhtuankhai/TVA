@@ -65,7 +65,7 @@
         <input class="input-field" id="filterDateFrom" type="date" style="max-width: 150px;">
         <input class="input-field" id="filterDateTo" type="date" style="max-width: 150px;">
         <button class="btn-primary" onclick="currentPage=0; loadTrades();">Filter</button>
-        <button class="btn-primary" style="background: #374151;" onclick="resetFilters()">Reset</button>
+        <button class="btn-primary" style="background: var(--surface-2);" onclick="resetFilters()">Reset</button>
     </div>
 </div>
 
@@ -95,9 +95,9 @@
 
 <!-- Pagination -->
 <div style="display: flex; justify-content: center; gap: 8px; margin-top: 16px; align-items: center;">
-    <button class="btn-primary" style="background: #374151;" id="prevBtn" onclick="prevPage()">Previous</button>
+    <button class="btn-primary" style="background: var(--surface-2);" id="prevBtn" onclick="prevPage()">Previous</button>
     <span style="padding: 8px 16px; color: var(--text-2); font-size: 0.85rem;" id="pageInfo">Page 1</span>
-    <button class="btn-primary" style="background: #374151;" id="nextBtn" onclick="nextPage()">Next</button>
+    <button class="btn-primary" style="background: var(--surface-2);" id="nextBtn" onclick="nextPage()">Next</button>
 </div>
 {% endblock %}
 

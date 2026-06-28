@@ -10,7 +10,7 @@
 <div class="card" style="padding: 24px; max-width: 600px;">
     <form onsubmit="saveSettings(event)">
         <!-- Bot Active Toggle -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
             <div>
                 <p style="font-weight: 600;">Bot Engine</p>
                 <p style="font-size: 0.8rem; color: var(--text-2);">Enable or disable automated trading</p>
@@ -19,11 +19,11 @@
         </div>
 
         <!-- Testnet Mode Toggle -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #374151;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);">
             <div>
                 <p style="font-weight: 600;">Testnet Mode</p>
                 <p style="font-size: 0.8rem; color: var(--text-2);">Trade with fake money on Binance testnets.</p>
-                <p id="testnetWarning" style="font-size: 0.75rem; color: #fca5a5; margin-top: 4px; display: none;">
+                <p id="testnetWarning" style="font-size: 0.75rem; color: var(--neg); margin-top: 4px; display: none;">
                     Turning this OFF means the bot will trade with REAL money
                 </p>
             </div>
@@ -66,7 +66,7 @@
         </div>
 
         <!-- Telegram Notifications -->
-        <div style="margin-bottom: 24px; padding-top: 16px; border-top: 1px solid #374151;">
+        <div style="margin-bottom: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
             <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Telegram Notifications</h3>
 
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -90,7 +90,7 @@
                     <p style="font-size: 0.75rem; color: var(--text-2); margin-top: 4px;">Get from <a href="https://t.me/userinfobot" target="_blank" style="color: #60a5fa;">@userinfobot</a> on Telegram</p>
                 </div>
 
-                <button type="button" class="btn-primary" style="width: 100%; background: #374151; margin-bottom: 8px;" onclick="testTelegram()">
+                <button type="button" class="btn-primary" style="width: 100%; background: var(--surface-2); margin-bottom: 8px;" onclick="testTelegram()">
                     Send Test Message
                 </button>
             </div>
@@ -103,19 +103,19 @@
 </div>
 
 <!-- Confirmation modal for disabling testnet -->
-<div class="modal-overlay" id="testnetConfirmModal">
+<div class="modal-overlay" id="testnetConfirmModal" role="dialog" aria-modal="true" aria-label="Confirm switch to live trading">
     <div class="modal-content">
-        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: #fca5a5;">Switch to Live Trading?</h3>
+        <h3 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 12px; color: var(--neg);">Switch to Live Trading?</h3>
         <p style="font-size: 0.875rem; color: var(--text-2); margin-bottom: 8px;">
             You are about to disable Testnet Mode. This means:
         </p>
         <ul style="font-size: 0.85rem; color: #d1d5db; margin-bottom: 20px; padding-left: 20px; list-style: disc;">
-            <li style="margin-bottom: 6px;">The bot will execute trades with <strong style="color: #fca5a5;">real money</strong></li>
+            <li style="margin-bottom: 6px;">The bot will execute trades with <strong style="color: var(--neg);">real money</strong></li>
             <li style="margin-bottom: 6px;">Make sure your live Binance API keys are configured for every market you plan to trade.</li>
             <li>Double-check your risk settings before enabling</li>
         </ul>
         <div style="display: flex; gap: 8px; justify-content: flex-end;">
-            <button class="btn-primary" style="background: #374151;" onclick="cancelTestnetOff()">Cancel</button>
+            <button class="btn-primary" style="background: var(--surface-2);" onclick="cancelTestnetOff()">Cancel</button>
             <button class="btn-danger" onclick="confirmTestnetOff()">Yes, go live</button>
         </div>
     </div>
