@@ -6,9 +6,14 @@
     <title>{% block title %}AlgoPro{% endblock %}</title>
     <meta name="description" content="AlgoPro – Self-hosted trading bot bridging TradingView to Binance">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>⚡</text></svg>">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
     <style>
+        /* Base reset — replaces the removed Tailwind/Flowbite preflight so
+           headings, paragraphs and form controls render as before. */
+        *, *::before, *::after { box-sizing: border-box; }
+        * { margin: 0; }
+        button, input, select, textarea { font: inherit; color: inherit; }
+        img, svg { vertical-align: middle; }
+
         body { background-color: #111827; color: #f9fafb; font-family: 'Inter', sans-serif; }
         .card { background-color: #1f2937; border: 1px solid #374151; border-radius: 0.5rem; }
         .badge-green { background-color: #065f46; color: #6ee7b7; padding: 2px 8px; border-radius: 9999px; font-size: 0.75rem; }
@@ -168,7 +173,6 @@
 <div id="toast" class="toast"></div>
 
 <!-- Scripts -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/flowbite/2.3.0/flowbite.min.js"></script>
 <script>
     // ── XSS Protection ──────────────────────────────────────────────
     function escapeHtml(str) {
