@@ -116,7 +116,17 @@ async def test_telegram(db: AsyncSession = Depends(get_db)):
             async with session.post(url, json=payload, timeout=aiohttp.ClientTimeout(total=10)) as resp:
                 data = await resp.json()
                 if resp.status == 200 and data.get("ok"):
-                    return {"status": "ok", "message": "Test message sent"}
+                    result = {"status": "ok", "message": "Test message sent"}
+                    # The test only proves credentials work. Live trade alerts
+                    # are gated separately on the `telegram_enabled` toggle
+                    # (see notifications.send_telegram), so warn if it's off.
+                    if not settings.telegram_enabled:
+                        result["warning"] = (
+                            "Test sent, but Telegram notifications are OFF. "
+                            "Turn on the Enable toggle and Save — otherwise no "
+                            "live trade alerts will be sent."
+                        )
+                    return result
                 else:
                     desc = data.get("description", "Unknown error")
                     logger.warning("Telegram test failed: %s", desc)

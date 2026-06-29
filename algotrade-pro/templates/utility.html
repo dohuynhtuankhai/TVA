@@ -4,11 +4,11 @@
 {% block content %}
 <div style="margin-bottom: 24px;">
     <h2 style="font-size: 1.5rem; font-weight: 700;">Utility</h2>
-    <p style="color: #9ca3af; font-size: 0.875rem;">Out-of-context helpers — tooling that supports trading without being part of the bot's execution path.</p>
+    <p style="color: var(--text-2); font-size: 0.875rem;">Out-of-context helpers — tooling that supports trading without being part of the bot's execution path.</p>
 </div>
 
 <!-- Sub-section tabs -->
-<div style="display: flex; gap: 8px; border-bottom: 1px solid #374151; margin-bottom: 20px;">
+<div style="display: flex; gap: 8px; border-bottom: 1px solid var(--border); margin-bottom: 20px;">
     <button class="util-tab active" data-tab="tv-alerts" onclick="switchUtilTab('tv-alerts')">TradingView Alerts</button>
 </div>
 
@@ -18,10 +18,10 @@
         <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
             <div>
                 <h3 style="font-size: 1.1rem; font-weight: 600;">TradingView Alerts</h3>
-                <p style="font-size: 0.8rem; color: #6b7280; margin-top: 4px;">Log each TradingView alert with its symbol, timeframe, and expiry. A background watcher sends a Telegram nudge starting 24 h before expiry (and re-pings every 12 h until the row is updated or removed).</p>
+                <p style="font-size: 0.8rem; color: var(--text-2); margin-top: 4px;">Log each TradingView alert with its symbol, timeframe, and expiry. A background watcher sends a Telegram nudge starting 24 h before expiry (and re-pings every 12 h until the row is updated or removed).</p>
             </div>
             <div style="display: flex; gap: 8px;">
-                <button class="btn-primary" id="checkNowBtn" style="background: #374151;" onclick="checkAlertsNow()">Check Now</button>
+                <button class="btn-primary" id="checkNowBtn" style="background: var(--surface-2);" onclick="checkAlertsNow()">Check Now</button>
                 <button class="btn-primary" onclick="openAlertModal()">+ Add Alert</button>
             </div>
         </div>
@@ -54,36 +54,36 @@
         <form onsubmit="submitAlert(event)">
             <input type="hidden" id="alertId">
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+            <div class="g2" style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                 <div>
-                    <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Symbol</label>
+                    <label style="display:block; font-size:0.875rem; color:var(--text-2); margin-bottom:4px;">Symbol</label>
                     <input class="input-field" id="alertSymbol" placeholder="e.g. BTCUSDT" required style="text-transform: uppercase;">
                 </div>
                 <div>
-                    <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Timeframe</label>
+                    <label style="display:block; font-size:0.875rem; color:var(--text-2); margin-bottom:4px;">Timeframe</label>
                     <input class="input-field" id="alertTimeframe" placeholder="e.g. 5m, 1h, 4h, 1D" required>
                 </div>
             </div>
 
             <div style="margin-bottom:12px;">
-                <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Expires at (UTC)</label>
+                <label style="display:block; font-size:0.875rem; color:var(--text-2); margin-bottom:4px;">Expires at (UTC)</label>
                 <input class="input-field" id="alertExpires" type="datetime-local" required>
-                <p style="font-size:0.75rem; color:#6b7280; margin-top:4px;">TradingView typically expires alerts after ~2 months. Pick that exact date so the nudge fires in time.</p>
+                <p style="font-size:0.75rem; color:var(--text-2); margin-top:4px;">TradingView typically expires alerts after ~2 months. Pick that exact date so the nudge fires in time.</p>
             </div>
 
             <div style="margin-bottom:12px;">
-                <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Name (optional)</label>
+                <label style="display:block; font-size:0.875rem; color:var(--text-2); margin-bottom:4px;">Name (optional)</label>
                 <input class="input-field" id="alertName" placeholder="e.g. SuperBE4 BTC 5m">
             </div>
 
             <div style="margin-bottom:16px;">
-                <label style="display:block; font-size:0.875rem; color:#9ca3af; margin-bottom:4px;">Note (optional)</label>
+                <label style="display:block; font-size:0.875rem; color:var(--text-2); margin-bottom:4px;">Note (optional)</label>
                 <textarea class="input-field" id="alertNote" rows="2" placeholder="What strategy / webhook is hooked to this alert?"></textarea>
             </div>
 
-            <p id="alertError" style="font-size:0.8rem; color:#fca5a5; display:none; margin-bottom: 12px;"></p>
+            <p id="alertError" style="font-size:0.8rem; color: var(--neg); display:none; margin-bottom: 12px;"></p>
             <div style="display:flex; gap:8px; justify-content:flex-end;">
-                <button type="button" class="btn-primary" style="background:#374151;" onclick="closeAlertModal()">Cancel</button>
+                <button type="button" class="btn-primary" style="background: var(--surface-2);" onclick="closeAlertModal()">Cancel</button>
                 <button type="submit" class="btn-primary">Save</button>
             </div>
         </form>
@@ -91,8 +91,8 @@
 </div>
 
 <style>
-    .util-tab { background: none; color: #9ca3af; border: none; padding: 8px 14px; cursor: pointer; font-size: 0.875rem; border-bottom: 2px solid transparent; }
-    .util-tab.active { color: #f9fafb; border-bottom-color: #2563eb; }
+    .util-tab { background: none; color: var(--text-2); border: none; padding: 8px 14px; cursor: pointer; font-size: 0.875rem; border-bottom: 2px solid transparent; }
+    .util-tab.active { color: var(--text); border-bottom-color: var(--accent); }
     .alert-row-expired { background: rgba(127, 29, 29, 0.15); }
     .alert-row-warning { background: rgba(120, 53, 15, 0.15); }
 </style>
@@ -128,7 +128,7 @@
         const alerts = await res.json();
         const tbody = document.getElementById('alertsBody');
         if (alerts.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#6b7280; padding: 32px;">No TradingView alerts logged yet.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--text-2); padding: 32px;">No TradingView alerts logged yet.</td></tr>';
             return;
         }
         const now = Date.now();
@@ -137,18 +137,18 @@
             const expFmt = new Date(a.expires_at).toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
             const notifiedFmt = a.notified_at
                 ? new Date(a.notified_at).toISOString().replace('T', ' ').slice(0, 16) + ' UTC'
-                : '<span style="color:#6b7280;">—</span>';
+                : '<span style="color:var(--text-2);">—</span>';
             const payload = JSON.stringify(a).replace(/"/g, '&quot;');
             return `<tr class="${status.rowClass}">
                 <td style="font-weight:500;">${tvSymbolLink(a.symbol, a.timeframe, null)}</td>
                 <td>${esc(a.timeframe)}</td>
-                <td>${a.name ? esc(a.name) : '<span style="color:#6b7280;">—</span>'}</td>
+                <td>${a.name ? esc(a.name) : '<span style="color:var(--text-2);">—</span>'}</td>
                 <td style="font-size:0.8rem;">${esc(expFmt)}</td>
                 <td><span class="${status.klass}">${status.label}</span></td>
-                <td style="font-size:0.75rem; color:#9ca3af;">${notifiedFmt}</td>
+                <td style="font-size:0.75rem; color:var(--text-2);">${notifiedFmt}</td>
                 <td>
-                    <button data-alert='${payload}' onclick='editAlert(this)' style="color:#2563eb; background:none; border:none; cursor:pointer; font-size:0.8rem;">Edit</button>
-                    <button onclick="deleteAlert(${a.id})" style="color:#ef4444; background:none; border:none; cursor:pointer; font-size:0.8rem;">Remove</button>
+                    <button data-alert='${payload}' onclick='editAlert(this)' style="color: var(--accent); background:none; border:none; cursor:pointer; font-size:0.8rem;">Edit</button>
+                    <button onclick="deleteAlert(${a.id})" style="color: var(--bad); background:none; border:none; cursor:pointer; font-size:0.8rem;">Remove</button>
                 </td>
             </tr>`;
         }).join('');
